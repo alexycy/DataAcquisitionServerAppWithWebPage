@@ -1,0 +1,142 @@
+﻿@page "/control"
+@using DataAcquisitionServerApp
+@inject DataAcquisitionService DataAcquisitionService
+
+<h3>服务控制</h3>
+
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">串口设置</div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="portName">串口号</label>
+                        <input type="text" class="form-control" id="portName" @bind="portName" />
+                    </div>
+                    <div class="form-group">
+                        <label for="baudRate">波特率</label>
+                        <input type="number" class="form-control" id="baudRate" @bind="baudRate" />
+                    </div>
+                    <button @onclick="UpdateSerialPortSettings" style="margin-top: 10px;">  更新设置 </button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">TCP服务设置</div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="tcpAddress">服务器地址</label>
+                        <input type="url" class="form-control" id="tcpAddress" @bind="tcpAddress" />
+                    </div>
+                    <div class="form-group">
+                        <label for="tcpPort">端口</label>
+                        <input type="number" class="form-control" id="tcpPort" @bind="tcpPort" />
+                        <button @onclick="UpdateTCPServerSettings">更新设置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">WebSocket服务设置</div>
+                <div class="card-body">
+                    <!-- WebSocket服务设置内容，如端口号、地址等 -->
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Telnet服务设置</div>
+                <div class="card-body">
+                    <!-- Telnet服务设置内容，如端口号、地址等 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">远程控制</div>
+                <div class="card-body">
+                    <button @onclick="StartServicesAsync">启动服务</button>
+                    <button @onclick="StopServices">停止服务</button>
+                    <p>@_message</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">其他设置</div>
+                <div class="card-body">
+                    <!-- Telnet服务设置内容，如端口号、地址等 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Modal Title</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    This is the modal content.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+
+
+
+@code {
+    private string _message = string.Empty;
+
+    private async Task StartServicesAsync()
+    {
+        await DataAcquisitionService.StartServicesAsync();
+        _message = "服务已启动";
+    }
+
+    private void StopServices()
+    {
+        DataAcquisitionService.StopServices();
+        _message = "服务已停止";
+    }
+
+    string portName = "COM1";
+    int baudRate = 9600;
+    // 添加其他设置的变量，如数据位、停止位等
+
+    private void UpdateSerialPortSettings()
+    {
+        DataAcquisitionService.UpdateSerialPortSettings(portName, baudRate);
+    }
+
+    string tcpAddress = "127.0.0.1";
+    int tcpPort = 9009;
+    // 添加其他设置的变量，如数据位、停止位等
+
+    private void UpdateTCPServerSettings()
+    {
+        DataAcquisitionService.UpdateTCPServerSettings(tcpAddress, tcpPort);
+    }
+
+
+}
