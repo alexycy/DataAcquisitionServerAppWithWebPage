@@ -1,36 +1,55 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using DataAcquisitionServerAppWithWebPage.Data
+@inject ApiAuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+@code {
+    private AuthenticationState authState;
+
+    protected override async Task OnInitializedAsync()
+    {
+        authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+    }
+}
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">DataAcquisitionServerAppWithWebPage</a>
+        <a class="navbar-brand" href="">数据采集服务器后台</a>
         <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
             <span class="navbar-toggler-icon"></span>
         </button>
     </div>
 </div>
+@if (authState.User.Identity.IsAuthenticated)
+{
+    <div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
+        <nav class="flex-column">
+            <div class="nav-item px-3">
+                @*<NavLink class="nav-link" href="" Match="NavLinkMatch.All">*@
+                <NavLink class="nav-link" href="index">
+                    <span class="oi oi-home" aria-hidden="true"></span> 设备状态
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="Loginformation">
+                    <span class="oi oi-media-record" aria-hidden="true"></span> 系统日志
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="control">
+                    <span class="oi oi-bluetooth" aria-hidden="true"></span> 服务控制
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="logout" @onclick="Logout">
+                    <span class="oi oi-account-logout" aria-hidden="true"></span> 退出登录
+                </NavLink>
+            </div>
 
-<div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="oi oi-home" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="oi oi-plus" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="fetchdata">
-                <span class="oi oi-list-rich" aria-hidden="true"></span> Fetch data
-            </NavLink>
-        </div>
-        <li class="nav-item px-3">
-            <NavLink class="nav-link" href="control">
-                <span class="oi oi-list-rich" aria-hidden="true"></span> 服务控制
-            </NavLink>
-        </li>
-    </nav>
-</div>
+        </nav>
+    </div>
+}
+
+
 
 @code {
     private bool collapseNavMenu = true;
@@ -41,4 +60,14 @@
     {
         collapseNavMenu = !collapseNavMenu;
     }
+
+    private async Task Logout()
+    {
+        await ((ApiAuthenticationStateProvider)AuthenticationStateProvider).Logout();
+        NavigationManager.NavigateTo("/");
+
+    }
+
+
+
 }

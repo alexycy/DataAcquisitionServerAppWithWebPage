@@ -1,0 +1,59 @@
+﻿@page "/status"
+@using DataAcquisitionServerApp
+@inject DataAcquisitionService DataAcquisitionService
+
+<table class="table">
+    <thead>
+        <tr>
+            <th scope="col">服务名</th>
+            <th scope="col">状态</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>串口服务1</td>
+            <td><div class="circle @SerialPortStatus1"></div></td>
+        </tr>
+        <tr>
+            <td>串口服务2</td>
+            <td><div class="circle @SerialPortStatus2"></div></td>
+        </tr>
+        <tr>
+            <td>TCP服务</td>
+            <td><div class="circle @TCPServerStatus"></div></td>
+        </tr>
+        <tr>
+            <td>WebSocket服务</td>
+            <td><div class="circle @WebSocketServerStatus"></div></td>
+        </tr>
+        <tr>
+            <td>Mqtt服务</td>
+            <td><div class="circle @MqttServerStatus"></div></td>
+        </tr>
+    </tbody>
+</table>
+
+@code {
+    private bool _isEventBound = false; // 新增状态变量来跟踪事件是否已经被绑定
+
+    string SerialPortStatus1 => DataAcquisitionService.deviceState.ifRunningSerialPort1 ? "bg-success" : "bg-danger";
+    string SerialPortStatus2 => DataAcquisitionService.deviceState.ifRunningSerialPort2 ? "bg-success" : "bg-danger";
+    string TCPServerStatus => DataAcquisitionService.deviceState.ifRunningTCPServer ? "bg-success" : "bg-danger";
+    string WebSocketServerStatus => DataAcquisitionService.deviceState.ifRunningWebSocketServer ? "bg-success" : "bg-danger";
+    string MqttServerStatus => DataAcquisitionService.deviceState.ifRunningMqttServer ? "bg-success" : "bg-danger";
+    protected override void OnInitialized()
+    {
+        //if (!_isEventBound)
+        //{
+        //    _isEventBound = true;
+        //    DataAcquisitionService.OnDeviceStateChanged += Refresh;
+        //}
+     
+    
+    
+    }
+    //void Refresh()
+    //{
+    //    StateHasChanged();
+    //}
+}

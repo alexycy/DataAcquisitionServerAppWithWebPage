@@ -1,0 +1,54 @@
+﻿@page "/Loginformation"
+@using DataAcquisitionServerApp
+@inject DataAcquisitionService DataAcquisitionService
+<PageTitle>日志页面</PageTitle>
+
+<h2>系统日志</h2>
+@if (logEntries == null)
+{
+    <p><em>正在加载日志数据...</em></p>
+}
+else
+{
+    <table class="table table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>时间</th>
+                <th>级别</th>
+                <th>信息</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var entry in logEntries)
+            {
+                <tr>
+                    <td>@entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td>@entry.Level</td>
+                    <td>@entry.Message</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    public static Queue<LogEntry>? logEntries = new  Queue<LogEntry>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        while (true)
+        {  
+
+            if (DataAcquisitionService.logQueue.TryDequeue(out LogEntry logMessage))
+            {
+                logEntries?.Enqueue(logMessage);
+                StateHasChanged(); // 通知Blazor重新渲染组件
+            }
+
+                await Task.Delay(1000); // 等待1秒后继续检查队列
+        }
+    }
+
+   
+
+}

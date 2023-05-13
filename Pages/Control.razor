@@ -2,9 +2,7 @@
 @using DataAcquisitionServerApp
 @inject DataAcquisitionService DataAcquisitionService
 
-<h3>服务控制</h3>
-
-
+<h2>服务控制</h2>
 <div class="container">
     <div class="row">
         <div class="col-md-6">
@@ -19,7 +17,7 @@
                         <label for="baudRate">波特率</label>
                         <input type="number" class="form-control" id="baudRate" @bind="baudRate" />
                     </div>
-                    <button @onclick="UpdateSerialPortSettings" style="margin-top: 10px;">  更新设置 </button>
+                    <button @onclick="UpdateSerialPortSettings" class="btn btn-primary" style="margin-top: 10px;">  更新设置 </button>
                 </div>
             </div>
         </div>
@@ -34,7 +32,7 @@
                     <div class="form-group">
                         <label for="tcpPort">端口</label>
                         <input type="number" class="form-control" id="tcpPort" @bind="tcpPort" />
-                        <button @onclick="UpdateTCPServerSettings">更新设置</button>
+                        <button class="btn btn-primary" @onclick="UpdateTCPServerSettings" style="margin-top: 10px;">更新设置</button>
                     </div>
                 </div>
             </div>
@@ -65,8 +63,8 @@
             <div class="card">
                 <div class="card-header">远程控制</div>
                 <div class="card-body">
-                    <button @onclick="StartServicesAsync">启动服务</button>
-                    <button @onclick="StopServices">停止服务</button>
+                    <button class="btn btn-primary" @onclick="StartServicesAsync">启动服务</button>
+                    <button class="btn btn-primary" @onclick="StopServices">停止服务</button>
                     <p>@_message</p>
                 </div>
             </div>
@@ -80,6 +78,40 @@
             </div>
         </div>
     </div>
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">服务启动设置</div>
+                <div class="card-body">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="isSerialPortEnabled" @bind="isSerialPortEnabled" @oninput="HandleChange" />
+                        <label class="form-check-label" for="isSerialPortEnabled">
+                            启动串口
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="isTCPServerEnabled" @bind="isTCPServerEnabled" @oninput="HandleChange" />
+                        <label class="form-check-label" for="isTCPServerEnabled">
+                            启动 TCP 服务器
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="isWebSocketServerEnabled" @bind="isWebSocketServerEnabled" @oninput="HandleChange" />
+                        <label class="form-check-label" for="isWebSocketServerEnabled">
+                            启动 WebSocket 服务器
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="isMqttServerEnabled" @bind="isMqttServerEnabled" @oninput="HandleChange" />
+                        <label class="form-check-label" for="isMqttServerEnabled">
+                            启动 MQTT 服务器
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Modal -->
     <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
@@ -106,10 +138,66 @@
 
 
 @code {
+    private bool _isSerialPortEnabled;
+    public bool isSerialPortEnabled
+    {
+        get => _isSerialPortEnabled = DataAcquisitionService.deviceList.ifStartSerialPort1;
+        set
+        {
+            _isSerialPortEnabled = value;
+            DataAcquisitionService.deviceList.ifStartSerialPort1 = value;
+        }
+    }
+    private bool _isTCPServerEnabled;
+    public bool isTCPServerEnabled
+    {
+        get => _isTCPServerEnabled = DataAcquisitionService.deviceList.ifStartTCPServer;
+        set
+        {
+            _isTCPServerEnabled = value;
+            DataAcquisitionService.deviceList.ifStartTCPServer = value;
+        }
+    }
+    private bool _isWebSocketServerEnabled;
+    public bool isWebSocketServerEnabled
+    {
+        get => _isWebSocketServerEnabled = DataAcquisitionService.deviceList.ifStartWebSocketServer;
+        set
+        { 
+            _isWebSocketServerEnabled = value;
+            DataAcquisitionService.deviceList.ifStartWebSocketServer = value;
+        }
+    }
+    private bool _isMqttServerEnabled;
+    public bool isMqttServerEnabled
+    {
+        get => _isMqttServerEnabled = DataAcquisitionService.deviceList.ifStartMqttServer;
+        set
+        {
+            _isMqttServerEnabled = value;
+            DataAcquisitionService.deviceList.ifStartMqttServer = value;
+        }
+    }
+
     private string _message = string.Empty;
 
+
+
+    private void SyncDeviceList()
+    {
+        DataAcquisitionService.deviceList.ifStartSerialPort1 = isSerialPortEnabled;
+        DataAcquisitionService.deviceList.ifStartTCPServer = isTCPServerEnabled;
+        DataAcquisitionService.deviceList.ifStartWebSocketServer = isWebSocketServerEnabled;
+        DataAcquisitionService.deviceList.ifStartMqttServer = isMqttServerEnabled;
+    }
+
+    private void HandleChange(ChangeEventArgs e)
+    {
+        SyncDeviceList();
+    }
     private async Task StartServicesAsync()
     {
+        SyncDeviceList();
         await DataAcquisitionService.StartServicesAsync();
         _message = "服务已启动";
     }

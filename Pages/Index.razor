@@ -1,9 +1,115 @@
-﻿@page "/"
-
+﻿@page "/index"
+@using DataAcquisitionServerApp
+@using System.Net
+@using DataAcquisitionServerAppWithWebPage.Data
+@inject DataAcquisitionService DataAcquisitionService
+@inject NavigationManager NavigationManager
+@inject ApiAuthenticationStateProvider AuthenticationStateProvider
 <PageTitle>Index</PageTitle>
 
-<h1>数据采集服务控制后台!</h1>
+<h2>设备状态</h2>
+<div class="container">
+    <div class="row" style="margin-left:10px;">
+        <div class="col">
+            <div class="card">
+                <div class="card-header">连接状态</div>
+                <div class="card-body">
+                    <p>当前 TCP 客户端连接数量：@TcpClientConnectionCount</p>
+                    <p>当前 WebSocket 客户端连接数量：@WebSocketClientConnectionCount</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row" style="margin-left:10px; margin-top:10px;">
+        <div class="col">
+            <div class="card">
+                <div class="card-header">服务状态</div>
+                <div class="card-body">
+                    <StatusIndicator />
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row" style="margin-left:10px; margin-top:10px;">
+        <div class="col">
+            <div class="card">
+                <div class="card-header">设备列表</div>
+                <div class="card-body">
+                    <table class="table table-striped table-bordered">
+                        <thead>
+                            <tr>
+                                <th>IP</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in devEntries)
+                            {
+                                <tr>
+                                    <td>@entry.ip</td>
+                                    <td>@entry.time.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-Welcome to your new app.
+@*<SurveyPrompt Title="通过该后台可以配置采集服务器各项服务参数以及控制启停" />*@
+@code {
+    private int TcpClientConnectionCount { get; set; }
+    private int WebSocketClientConnectionCount { get; set; }
+    private System.Timers.Timer? _timer;
+    private List<devInfo> devEntries = new List<devInfo>();
+    protected override void OnInitialized()
+    {
+        _timer = new System.Timers.Timer(1000);
+        _timer.Elapsed += UpdateConnectionCount;
+        _timer.AutoReset = true;
+        _timer.Enabled = true;
+    }
 
-<SurveyPrompt Title="How is Blazor working for you?" />
+
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (AuthenticationStateProvider.ifRefresh)
+        {
+            AuthenticationStateProvider.ifRefresh = false;
+            await Task.Delay(500);
+            // Navigate to the current page to trigger a reload
+            NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+        }
+      
+    }
+
+
+    private void UpdateConnectionCount(object sender, System.Timers.ElapsedEventArgs e)
+    {
+        InvokeAsync(() =>
+        {
+            TcpClientConnectionCount = DataAcquisitionService._connectedTcpClients.Count;
+            WebSocketClientConnectionCount = DataAcquisitionService._connectedClients.Count;
+            devEntries.Clear();
+            foreach (var item in DataAcquisitionService._connectedTcpClients)
+            {
+                devInfo dev = new devInfo();
+                IPAddress ipAddress = ((IPEndPoint)item._tcpClient.Client.RemoteEndPoint).Address;
+                dev.ip = ipAddress.ToString();
+                dev.time = item._dateTime;
+                devEntries.Add(dev);
+            }
+            
+            StateHasChanged();
+        });
+    }
+
+    private class devInfo{
+       public string ip;
+       public DateTime time;
+    }
+}

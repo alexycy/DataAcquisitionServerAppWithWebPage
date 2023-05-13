@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
 using DataAcquisitionServerApp;
+using DataAcquisitionServerAppWithWebPage.Service;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -19,9 +21,11 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.Requ
     .AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
+//builder.Services.AddScoped<AuthenticationStateProvider, ApiAuthenticationStateProvider>();
 builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddSingleton<DataAcquisitionService>();
+builder.Services.AddSingleton<ApiAuthenticationStateProvider>();
+builder.Services.AddSingleton<MqttService>();
 
 var app = builder.Build();
 

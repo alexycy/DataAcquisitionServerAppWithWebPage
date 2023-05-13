@@ -1,6 +1,12 @@
-﻿@inherits LayoutComponentBase
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using DataAcquisitionServerAppWithWebPage.Data
+@inherits LayoutComponentBase
 
-<PageTitle>DataAcquisitionServerAppWithWebPage</PageTitle>
+@inject NavigationManager NavigationManager
+@inject ApiAuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>数据采集服务器控制后台</PageTitle>
 
 <div class="page">
     <div class="sidebar">
@@ -9,8 +15,14 @@
 
     <main>
         <div class="top-row px-4 auth">
-            <LoginDisplay />
-            <a href="https://docs.microsoft.com/aspnet/" target="_blank">About</a>
+            @if (authState?.User?.Identity?.IsAuthenticated ?? false)
+            {
+                <a href="logout" class="nav-link">Hello, @authState.User.Identity.Name!</a>
+            }
+            else
+            {
+                <NavLink href="/?returnUrl=/">Login</NavLink>
+            }
         </div>
 
         <article class="content px-4">
@@ -18,3 +30,33 @@
         </article>
     </main>
 </div>
+
+@code {
+    private AuthenticationState authState;
+    private bool isSubscribed = false;
+    protected override async Task OnInitializedAsync()
+    {
+        authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        StateHasChanged();
+        if (!isSubscribed)
+        {
+            AuthenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+            isSubscribed = true;
+        }
+
+    }
+    private void OnAuthenticationStateChanged()
+    {
+        //NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+        AuthenticationStateProvider.ifRefresh = true;
+    }
+    public void Dispose()
+    {
+        if (isSubscribed)
+        {
+            AuthenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+            isSubscribed = false;
+        }
+    }
+
+}
