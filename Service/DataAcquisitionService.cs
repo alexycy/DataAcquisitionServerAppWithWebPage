@@ -10,7 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using DataAcquisitionServerAppWithWebPage.Pages;
-using DataAcquisitionServerAppWithWebPage.Service;
+
 
 namespace DataAcquisitionServerApp
 {
@@ -195,8 +195,8 @@ namespace DataAcquisitionServerApp
             if (!deviceState.ifRunningMqttServer && deviceList.ifStartMqttServer)
             {
                 await _mqttService.StartMQTTService();
-                LogMessage("MQTT服务 已启动", LogLevel.Information);
-                LogMessage($"MQTT服务启动状态: {_mqttService.mqttServer.IsStarted},MQTT服务器参数:{_mqttService.mqttServer.ServerSessionItems}", LogLevel.Information);
+                LogMessage("MQTT服务 已启动", LogLevel.Information);    LogMessage($"MQTT服务启动状态: {_mqttService.mqttServer.IsStarted},MQTT服务器参数:{_mqttService.mqttServer.ServerSessionItems}", LogLevel.Information);
+            
                 ChangeDeviceState(deviceState, "ifRunningMqttServer");
             }
             if (!_serialPort.IsOpen && deviceList.ifStartSerialPort1)
