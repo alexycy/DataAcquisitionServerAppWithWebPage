@@ -10,7 +10,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using DataAcquisitionServerAppWithWebPage.Pages;
-
+using Newtonsoft.Json;
+using SuperSocket;
+using DataAcquisitionServerAppWithWebPage.Service;
 
 namespace DataAcquisitionServerApp
 {
@@ -245,10 +247,10 @@ namespace DataAcquisitionServerApp
             {
                 LogMessage("Starting Webscoket service...",LogLevel.Information);
                 _cancellationTokenSource2 = new CancellationTokenSource();
-                _httpListener = new HttpListener();
-                _httpListener.Prefixes.Add("http://192.168.1.101:5005/");
-                _httpListener.Start();
-                Console.WriteLine("WebSocket 服务器已启动");
+                //_httpListener = new HttpListener();
+                //_httpListener.Prefixes.Add("http://192.168.1.103:5005/");
+                //_httpListener.Start();
+                //Console.WriteLine("WebSocket 服务器已启动");
                 Task.Run(() => ListenWebSocket(_cancellationTokenSource2.Token));
 
 
@@ -261,7 +263,9 @@ namespace DataAcquisitionServerApp
 
                 LogMessage("Starting TCP service...",LogLevel.Information);
                 _connectedTcpClients.Clear();
-                await Task.Factory.StartNew(() => ListenTcp(tcpServerSetting.TCPAddress,tcpServerSetting.TCPPort));
+                //await Task.Factory.StartNew(() => ListenTcp(tcpServerSetting.TCPAddress,tcpServerSetting.TCPPort));
+                var tcpServer  =  new TcpServer();
+                tcpServer.StartServerAsync();
                 LogMessage("TCP服务 已启动",LogLevel.Information);
                 ChangeDeviceState(deviceState, "ifRunningTCPServer");
             }
@@ -312,18 +316,34 @@ namespace DataAcquisitionServerApp
             {
                 var stream = client.GetStream();
                 var buffer = new byte[1024];
-
                 while (client.Connected)
                 {
                     var byteCount = await stream.ReadAsync(buffer, 0, buffer.Length);
                     if (byteCount > 0)
                     {
-                        var message = Encoding.UTF8.GetString(buffer, 0, byteCount);
-                        Console.WriteLine($"收到来自客户端的消息：{message}");
-                        foreach (var item in _connectedClients)
+                        var hex = BitConverter.ToString(buffer, 0, byteCount).Replace("-", "");
+                        Console.WriteLine($"收到来自客户端的消息：{hex}");
+
+                        var jsonPacket = new
                         {
-                            await item.SendAsync(new ArraySegment<byte>(buffer, 0, byteCount), WebSocketMessageType.Text, true, CancellationToken.None);
-                            Console.WriteLine($"发送消息到客户端: {message}");
+                            Address = client.Client.RemoteEndPoint.ToString(),
+                            Message = hex
+                        };
+
+                        string jsonString = JsonConvert.SerializeObject(jsonPacket);
+
+                        foreach (var item in _connectedClients.ToList()) // ToList() is used to avoid collection modification during enumeration
+                        {
+                            try
+                            {
+                                await item.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonString)), WebSocketMessageType.Text, true, CancellationToken.None);
+                                Console.WriteLine($"发送消息到客户端: {jsonString}");
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine($"发送消息到客户端时出错：{e.Message}");
+                                _connectedClients.Remove(item);
+                            }
                         }
                     }
                     else
@@ -331,7 +351,6 @@ namespace DataAcquisitionServerApp
                         break;
                     }
                 }
-
             }
             catch (Exception e)
             {
@@ -346,21 +365,24 @@ namespace DataAcquisitionServerApp
                         _connectedTcpClients.Remove(item);
                     }
                 }
-                
                 client.Close();
                 Console.WriteLine($"客户端 {_clientCount--} 已断开");
             }
         }
 
-        async Task ListenWebsocket(string ipAddress, int port)
+
+
+
+
+        private async Task ListenWebSocket(CancellationToken cancellationToken)
         {
-            _cancellationTokenSource2 = new CancellationTokenSource();
+           
             _httpListener = new HttpListener();
             //var address = $"{ipAddress}:{port}/";
             //httpListener.Prefixes.Add(address);
-            _httpListener.Prefixes.Add("http://192.168.1.101:9008/");
+            _httpListener.Prefixes.Add("http://192.168.1.103:5005/");
             _httpListener.Start();
-            while (!_cancellationTokenSource2.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 var context = await _httpListener.GetContextAsync();
 
@@ -389,52 +411,91 @@ namespace DataAcquisitionServerApp
 
         async Task WebSocketConnectionHandler(WebSocket webSocket)
         {
-            var buffer = new byte[1024 * 4];
+            var buffer = new byte[1024];
             _connectedClients.Add(webSocket);
             Console.WriteLine($"当前客户端连接数量: {_connectedClients.Count}");
             while (true)
             {
                 var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                if (result.MessageType == WebSocketMessageType.Text)
+                var num = result.Count;
+                if (result != null)
                 {
-                    string message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    Console.WriteLine($"收到来自 WebSocket 客户端的消息: {message}");
+                    var jsonString = Encoding.UTF8.GetString(buffer, 0, num);
+                    var jsonPacket = JsonConvert.DeserializeObject<dynamic>(jsonString);
 
-                    // 处理从 WebSocket 客户端接收到的消息，例如将其发送到串口
-                    if (_serialPort != null && _serialPort.IsOpen && !string.IsNullOrEmpty(message))
+                    var address = (string)jsonPacket.Address;
+                    var messageHex = (string)jsonPacket.Message;
+
+                    Console.WriteLine($"收到来自 WebSocket 客户端{address}的消息: {messageHex}");
+
+
+                    var messageBytes = StringToByteArray(messageHex);
+
+                    var targetClient = _connectedTcpClients.FirstOrDefault(c => c._tcpClient.Client.RemoteEndPoint.ToString() == address);
+                    if (targetClient != null)
                     {
-                        _serialPort.Write(message);
+                        var stream = targetClient._tcpClient.GetStream();
+                        await stream.WriteAsync(messageBytes, 0, messageBytes.Length);
                     }
-                    if (_listenerWrapper1.Listener != null)
-                    {
-                        foreach (var item in _connectedTcpClients)
-                        {
-                            /*  tcpClient.Client.RemoteEndPoint as IPEndPoint：尝试将RemoteEndPoint属性转换为IPEndPoint类型。如果RemoteEndPoint为null或不能转换为IPEndPoint，as操作符将返回null。
+                    Console.WriteLine($"发送到目标客户端 客户端{address}的报文: {messageHex}");
 
-                              (tcpClient.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString()：使用null条件访问操作符（?.），如果转换后的IPEndPoint对象不为null，我们将访问其Address属性并调用ToString()方法将IP地址转换为字符串。如果IPEndPoint对象为null，则整个表达式将返回null。
+                    //// 处理从 WebSocket 客户端接收到的消息，例如将其发送到串口
+                    //if (_serialPort != null && _serialPort.IsOpen && !string.IsNullOrEmpty(message))
+                    //{
+                    //    _serialPort.Write(message);
+                    //}
+                    //if (_listenerWrapper1.Listener != null)
+                    //{
+                    //    foreach (var item in _connectedTcpClients)
+                    //    {
+                    //        /*  tcpClient.Client.RemoteEndPoint as IPEndPoint：尝试将RemoteEndPoint属性转换为IPEndPoint类型。如果RemoteEndPoint为null或不能转换为IPEndPoint，as操作符将返回null。
 
-                              string remoteAddress = ... ?? string.Empty;：空合并操作符（??）用于处理上述表达式返回的null值。如果表达式结果为null，remoteAddress将被赋值为空字符串（string.Empty）。如果表达式结果不为null，remoteAddress将被赋值为IP地址字符串。
+                    //          (tcpClient.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString()：使用null条件访问操作符（?.），如果转换后的IPEndPoint对象不为null，我们将访问其Address属性并调用ToString()方法将IP地址转换为字符串。如果IPEndPoint对象为null，则整个表达式将返回null。
 
-                              综上所述，这段代码的作用是尝试从tcpClient对象获取远程客户端的IP地址字符串，如果无法获取（例如，RemoteEndPoint为null），则将remoteAddress赋值为空字符串。*/
-                            string remoteAddress = (item._tcpClient.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? string.Empty;
+                    //          string remoteAddress = ... ?? string.Empty;：空合并操作符（??）用于处理上述表达式返回的null值。如果表达式结果为null，remoteAddress将被赋值为空字符串（string.Empty）。如果表达式结果不为null，remoteAddress将被赋值为IP地址字符串。
 
-                            if (remoteAddress == "192.168.1.103")
-                            {
-                                try
-                                {
-                                    var stream = item._tcpClient.GetStream();
-                                    var sendBuffer = Encoding.UTF8.GetBytes(message);
-                                    await stream.WriteAsync(sendBuffer, 0, sendBuffer.Length);
-                                    Console.WriteLine($"发送消息到 TCP 客户端: {message}");
-                                }
-                                catch (Exception e)
-                                {
-                                    Console.WriteLine($"发送消息到 TCP 客户端出错：{e.Message}");
-                                }
-                            }
+                    //          综上所述，这段代码的作用是尝试从tcpClient对象获取远程客户端的IP地址字符串，如果无法获取（例如，RemoteEndPoint为null），则将remoteAddress赋值为空字符串。*/
+                    //        string remoteAddress = (item._tcpClient.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? string.Empty;
 
-                        }
-                    }
+                    //        if (remoteAddress == "192.168.1.103")
+                    //        {
+                    //            try
+                    //            {
+                    //                var stream = item._tcpClient.GetStream();
+                    //                var sendBuffer = Encoding.UTF8.GetBytes(message);
+                    //                await stream.WriteAsync(sendBuffer, 0, sendBuffer.Length);
+                    //                Console.WriteLine($"发送消息到 TCP 客户端: {message}");
+                    //            }
+                    //            catch (Exception e)
+                    //            {
+                    //                Console.WriteLine($"发送消息到 TCP 客户端出错：{e.Message}");
+                    //            }
+                    //        }
+
+                    //    }
+                    //}
+
+                    //while (webSocket.State == WebSocketState.Open)
+                    //{
+                    //var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                    //if (result.MessageType == WebSocketMessageType.Close)
+                    //{
+                    //    await webSocketContext.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                    //}
+                    //else
+                    //{
+                    //    var jsonString = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    //    var jsonPacket = JsonConvert.DeserializeObject<dynamic>(jsonString);
+
+                    //    var address = (string)jsonPacket.Address;
+                    //    var messageHex = (string)jsonPacket.Message;
+
+
+                    //}
+                    //}
+
+
+
                 }
                 else if (result.MessageType == WebSocketMessageType.Close)
                 {
@@ -510,34 +571,78 @@ namespace DataAcquisitionServerApp
             logQueue?.Enqueue(GenerateLog(message, level));
         }
 
-        private  async Task ListenWebSocket(CancellationToken cancellationToken)
+        //private async Task ListenWebSocket(CancellationToken cancellationToken)
+        //{
+        //    while (!cancellationToken.IsCancellationRequested)
+        //    {
+        //        var context = await _httpListener.GetContextAsync();
+
+        //        if (context.Request.IsWebSocketRequest)
+        //        {
+        //            WebSocketContext webSocketContext = null;
+
+        //            try
+        //            {
+        //                webSocketContext = await context.AcceptWebSocketAsync(null);
+        //                _connectedClients.Add(webSocketContext.WebSocket);
+        //                Console.WriteLine("WebSocket 连接已建立");
+        //                Console.WriteLine($"当前客户端连接数量: {_connectedClients.Count}");
+        //                // Start a new task to handle this connection
+        //                Task.Run(async () =>
+        //                {
+        //                    var buffer = new byte[1024];
+        //                    while (webSocketContext.WebSocket.State == WebSocketState.Open)
+        //                    {
+        //                        var result = await webSocketContext.WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+        //                        if (result.MessageType == WebSocketMessageType.Close)
+        //                        {
+        //                            await webSocketContext.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+        //                        }
+        //                        else
+        //                        {
+                                 
+
+        //                            var jsonString = Encoding.UTF8.GetString(buffer, 0, result.Count);
+        //                            var jsonPacket = JsonConvert.DeserializeObject<dynamic>(jsonString);
+        //                            var address = (string)jsonPacket.Address;
+        //                            var messageHex = (string)jsonPacket.Message;
+        //                            Console.WriteLine($"收到后台下发: {messageHex}");
+        //                            Console.WriteLine($"目标地址: {address}");
+
+        //                            var messageBytes = StringToByteArray(messageHex);
+
+        //                            var targetClient = _connectedTcpClients.FirstOrDefault(c => c._tcpClient.Client.RemoteEndPoint.ToString() == address);
+        //                            if (targetClient != null)
+        //                            {
+        //                                var stream = targetClient._tcpClient.GetStream();
+        //                                await stream.WriteAsync(messageBytes, 0, messageBytes.Length);
+        //                            }
+        //                        }
+        //                    }
+        //                });
+        //            }
+        //            catch (Exception e)
+        //            {
+        //                Console.WriteLine("WebSocket 连接错误: " + e.Message);
+        //            }
+        //        }
+        //        else
+        //        {
+        //            context.Response.StatusCode = 400;
+        //            context.Response.Close();
+        //        }
+        //    }
+        //}
+
+        public static byte[] StringToByteArray(string hex)
         {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                var context = await _httpListener.GetContextAsync();
-
-                if (context.Request.IsWebSocketRequest)
-                {
-                    WebSocketContext webSocketContext = null;
-
-                    try
-                    {
-                        webSocketContext = await context.AcceptWebSocketAsync(null);
-                        Console.WriteLine("WebSocket 连接已建立");
-                        await WebSocketConnectionHandler(webSocketContext.WebSocket);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("WebSocket 连接错误: " + e.Message);
-                    }
-                }
-                else
-                {
-                    context.Response.StatusCode = 400;
-                    context.Response.Close();
-                }
-            }
+            return Enumerable.Range(0, hex.Length)
+                             .Where(x => x % 2 == 0)
+                             .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
+                             .ToArray();
         }
+
+
     }
 }
 
