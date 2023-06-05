@@ -18,115 +18,242 @@ namespace DataAcquisitionServerAppWithWebPage.Service
     {
 
         public List<IAppSession> sessions = new List<IAppSession>();
-        public class MyCustomProtocolFilter : FixedHeaderPipelineFilter<ProtocolPackage>
+
+
+        public class MyCustomProtocolFilter : PipelineFilterBase<ProtocolPackage>
         {
+            private int headerLength = 8; // Initial header length
+            private int startCodePosition = -1; // Position of the start code
 
-            public ISuperSocketHostBuilder<ProtocolPackage> host;
 
-            public MyCustomProtocolFilter() : base(8) // Header size is 8 bytes
+
+            public override ProtocolPackage Filter(ref SequenceReader<byte> reader)
             {
-
-            }
-
-            protected override int GetBodyLengthFromHeader(ref ReadOnlySequence<byte> buffer)
-            {
-                // The position of the start code in the header
-                const int startCodeFieldOffset = 0;
-
-                // Create a reader to read the start code field
-                var startCodeReader = new SequenceReader<byte>(buffer.Slice(startCodeFieldOffset, 2));
-
-                // Read the start code
-                startCodeReader.TryReadBigEndian(out ushort startCode);
-
-                // Check the start code
-                if (startCode != 0xA55A) // Replace 0xA55A with the actual start code
+                // Look for the start code in the current buffer
+                SequencePosition position = reader.Position;
+                bool startCodeFound = false;
+                while (reader.TryRead(out byte b))
                 {
-                    //throw new Exception("error startcode");
-                    return -2;
+                    if (b == 0xA5) // First byte of the start code
+                    {
+                        if (reader.TryRead(out byte nextB) && nextB == 0x5A) // Second byte of the start code
+                        {
+                            startCodePosition = (int)reader.Consumed - 2; // Update the position of the start code
+                            headerLength = 8 + startCodePosition; // Update the header length
+                            startCodeFound = true;
+                            break;
+                        }
+                    }
                 }
 
-                // The position of the data length field in the header
-                const int dataLengthFieldOffset = 6;
+                // Reset the reader to the original position
+                reader.Rewind((int)reader.Consumed);
+                reader.Advance(startCodePosition);
 
-                // Create a reader to read the data length field
-                var dataLengthReader = new SequenceReader<byte>(buffer.Slice(dataLengthFieldOffset, 2));
-
-                // Read the data length
-                dataLengthReader.TryReadBigEndian(out ushort dataLength);
-
-                /*supersocket takes the header defined in the constructor and the length of the
-                 * message read here as the length of the message but for the purposes of this 
-                 * protocol, there are four bytes (check code, end code) that are not counted, 
-                 * plus four*/
-                return dataLength + 4;
-            }
-
-            protected override ProtocolPackage DecodePackage(ref ReadOnlySequence<byte> buffer)
-            {
-                var reader = new SequenceReader<byte>(buffer);
-
-                var package = new ProtocolPackage();
-                try
+                // Now you can parse the package with the updated header length
+                if (startCodeFound)
                 {
-                    // read start code
-                    if (reader.TryRead(out byte firstByte) && reader.TryRead(out byte secondByte))
+                    var package = new ProtocolPackage();
+                    try
                     {
-                        package.StartCode = new byte[] { firstByte, secondByte };
-                        if (package.StartCode[0] != 0xA5 && package.StartCode[1]!=0x5A)
+                        // read start code
+                        if (reader.TryRead(out byte firstByte) && reader.TryRead(out byte secondByte))
                         {
-                            Console.WriteLine($"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
-                            reader.Advance(1);
+                            package.StartCode = new byte[] { firstByte, secondByte };
+                            if (package.StartCode[0] != 0xA5 && package.StartCode[1] != 0x5A)
+                            {
+                                Console.WriteLine($"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
+                                reader.Advance(1);
+                                return null;
+                            }
+                        }
+                        // read protocol version
+                        if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
+                        {
+                            package.ProtocolVersion = new byte[] { firstByte, secondByte };
+                        }
+                        // read reserved field
+                        if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
+                        {
+                            package.ReservedField = new byte[] { firstByte, secondByte };
+                        }
+                        // read data length
+                        reader.TryReadBigEndian(out ushort dataLength);
+                        package.DataLength = dataLength;
+
+                        // read data
+                        byte[] data = new byte[dataLength];
+                        if (reader.TryCopyTo(data))
+                        {
+                            reader.Advance(dataLength);
+                        }
+
+                        package.Data = data.ToArray();
+
+                        // read check code
+                        if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
+                        {
+                            var value = new byte[] { secondByte, firstByte };
+                            package.CheckCode = value;
+
+                        }
+
+                        // read end code
+                        if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
+                        {
+                            package.EndCode = new byte[] { firstByte, secondByte };
+                        }
+
+                        List<byte> list = new List<byte>();
+                        list.AddRange(package.StartCode);
+                        list.AddRange(package.ProtocolVersion);
+                        list.AddRange(package.ReservedField);
+                        list.AddRange(BitConverter.GetBytes(BinaryPrimitives.ReverseEndianness(package.DataLength)));
+                        list.AddRange(package.Data);
+
+                        byte[] result = list.ToArray();
+
+                        var checkSum = CheckAlgorithm.CalculateCrc16(result);
+                        var originalcheckSum = BitConverter.ToUInt16(package.CheckCode, 0);
+                        if (originalcheckSum != checkSum)
+                        {
+                            Console.WriteLine("Check failed, the message is invalid!!");
                             return null;
                         }
                     }
-                    // read protocol version
-                    if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
+                    catch (Exception e)
                     {
-                        package.ProtocolVersion = new byte[] { firstByte, secondByte };
-                    }
-                    // read reserved field
-                    if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
-                    {
-                        package.ReservedField = new byte[] { firstByte, secondByte };
-                    }
-                    // read data length
-                    reader.TryReadBigEndian(out ushort dataLength);
-                    package.DataLength = dataLength;
-
-                    // read data
-                    byte[] data = new byte[dataLength];
-                    if (reader.TryCopyTo(data))
-                    {
-                        reader.Advance(dataLength);
+                        Console.WriteLine($"{e}");
                     }
 
-                    package.Data = data.ToArray();
 
-                    // read check code
-                    if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
-                    {
-                        var value = new byte[] { secondByte, firstByte };
-                        package.CheckCode = value;
-
-                    }
-
-                    // read end code
-                    if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
-                    {
-                        package.EndCode = new byte[] { firstByte, secondByte };
-                    }
+                    return package;
                 }
-                catch (Exception e)
+                else
                 {
-                    Console.WriteLine($"{e}");
+                    return null;  // 或者抛出一个异常
                 }
-
-
-                return package;
             }
 
+            public override void Reset()
+            {
+                // Reset the state of the filter
+                headerLength = 8;
+                startCodePosition = -1;
+            }
         }
+
+
+
+        //public class MyCustomProtocolFilter : FixedHeaderPipelineFilter<ProtocolPackage>
+        //{
+
+        //    public ISuperSocketHostBuilder<ProtocolPackage> host;
+
+        //    public MyCustomProtocolFilter() : base(8) // Header size is 8 bytes
+        //    {
+
+        //    }
+
+        //    protected override int GetBodyLengthFromHeader(ref ReadOnlySequence<byte> buffer)
+        //    {
+        //        // The position of the start code in the header
+        //        const int startCodeFieldOffset = 0;
+
+        //        // Create a reader to read the start code field
+        //        var startCodeReader = new SequenceReader<byte>(buffer.Slice(startCodeFieldOffset, 2));
+
+        //        // Read the start code
+        //        startCodeReader.TryReadBigEndian(out ushort startCode);
+
+        //        // Check the start code
+        //        if (startCode != 0xA55A) // Replace 0xA55A with the actual start code
+        //        {
+        //            //throw new Exception("error startcode");
+        //            return -2;
+        //        }
+
+        //        // The position of the data length field in the header
+        //        const int dataLengthFieldOffset = 6;
+
+        //        // Create a reader to read the data length field
+        //        var dataLengthReader = new SequenceReader<byte>(buffer.Slice(dataLengthFieldOffset, 2));
+
+        //        // Read the data length
+        //        dataLengthReader.TryReadBigEndian(out ushort dataLength);
+
+        //        /*supersocket takes the header defined in the constructor and the length of the
+        //         * message read here as the length of the message but for the purposes of this 
+        //         * protocol, there are four bytes (check code, end code) that are not counted, 
+        //         * plus four*/
+        //        return dataLength + 4;
+        //    }
+
+        //    protected override ProtocolPackage DecodePackage(ref ReadOnlySequence<byte> buffer)
+        //    {
+        //        var reader = new SequenceReader<byte>(buffer);
+
+        //        var package = new ProtocolPackage();
+        //        try
+        //        {
+        //            // read start code
+        //            if (reader.TryRead(out byte firstByte) && reader.TryRead(out byte secondByte))
+        //            {
+        //                package.StartCode = new byte[] { firstByte, secondByte };
+        //                if (package.StartCode[0] != 0xA5 && package.StartCode[1] != 0x5A)
+        //                {
+        //                    Console.WriteLine($"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
+        //                    reader.Advance(1);
+        //                    return null;
+        //                }
+        //            }
+        //            // read protocol version
+        //            if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
+        //            {
+        //                package.ProtocolVersion = new byte[] { firstByte, secondByte };
+        //            }
+        //            // read reserved field
+        //            if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
+        //            {
+        //                package.ReservedField = new byte[] { firstByte, secondByte };
+        //            }
+        //            // read data length
+        //            reader.TryReadBigEndian(out ushort dataLength);
+        //            package.DataLength = dataLength;
+
+        //            // read data
+        //            byte[] data = new byte[dataLength];
+        //            if (reader.TryCopyTo(data))
+        //            {
+        //                reader.Advance(dataLength);
+        //            }
+
+        //            package.Data = data.ToArray();
+
+        //            // read check code
+        //            if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
+        //            {
+        //                var value = new byte[] { secondByte, firstByte };
+        //                package.CheckCode = value;
+
+        //            }
+
+        //            // read end code
+        //            if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
+        //            {
+        //                package.EndCode = new byte[] { firstByte, secondByte };
+        //            }
+        //        }
+        //        catch (Exception e)
+        //        {
+        //            Console.WriteLine($"{e}");
+        //        }
+
+
+        //        return package;
+        //    }
+
+        //}
 
 
         public IHost host;
