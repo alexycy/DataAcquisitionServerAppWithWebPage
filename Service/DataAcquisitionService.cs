@@ -13,6 +13,7 @@ using DataAcquisitionServerAppWithWebPage.Pages;
 using Newtonsoft.Json;
 using SuperSocket;
 using DataAcquisitionServerAppWithWebPage.Service;
+using System.Data;
 
 namespace DataAcquisitionServerApp
 {
@@ -73,6 +74,7 @@ namespace DataAcquisitionServerApp
     {
         public event Action OnDeviceStateChanged;
         private readonly MqttService _mqttService;
+        public  TcpServer? _tcpServer;
         public deviceState deviceState = new deviceState();
         public deviceList deviceList = new deviceList();
         SerialPort _serialPort = new SerialPort();
@@ -87,18 +89,76 @@ namespace DataAcquisitionServerApp
         TCPServerSetting tcpServerSetting = new TCPServerSetting();
         public Queue<LogEntry> logQueue = new Queue<LogEntry>();  
         int _clientCount = 0;
+        private WebSocketServer? _webSocketServer;
+        private SerialPortIOServer? _serialIOPortServer;
 
         public  DataAcquisitionService(IServiceProvider serviceProvider)
         {
             //在 Blazor 中，依赖注入通常在组件中使用，但如果你想在一个普通的类中使用，需要传递 IServiceProvider 来解析服务
             _mqttService = serviceProvider.GetService(typeof(MqttService)) as MqttService;
+            //单例模式实现
+            _tcpServer = serviceProvider.GetService(typeof(TcpServer)) as TcpServer;
+            _webSocketServer = serviceProvider.GetService(typeof(WebSocketServer)) as WebSocketServer;
+            _serialIOPortServer = serviceProvider.GetService(typeof(SerialPortIOServer)) as SerialPortIOServer;
 
             
 
-            serialPortSetting.PortName = "COM1";
-            serialPortSetting.BaudRate = 9600;
-            tcpServerSetting.TCPPort = 9009;
-            tcpServerSetting.TCPAddress = "127.0.0.1";
+
+
+
+            if (_listenerWrapper1 == null )
+            {
+
+                LogMessage("Starting TCP service...", LogLevel.Information);
+                _connectedTcpClients.Clear();
+                //await Task.Factory.StartNew(() => ListenTcp(tcpServerSetting.TCPAddress,tcpServerSetting.TCPPort));
+                _tcpServer.StartServerAsync();
+                LogMessage("TCP服务 已启动", LogLevel.Information);
+                ChangeDeviceState(deviceState, "ifRunningTCPServer");
+            }
+
+            if (_listenerWrapper2 ==null)
+            {
+                LogMessage("Starting WebSocket service...", LogLevel.Information);
+                _connectedClients.Clear();
+                _webSocketServer.StartServerAsync();
+                LogMessage("WebSocket服务 已启动", LogLevel.Information);
+                ChangeDeviceState(deviceState, "ifRunningWebSocketServer");
+            }
+
+
+            //LogMessage("Starting SerialPortIO service...", LogLevel.Information);
+            //_serialIOPortServer.StartSerialPortIOServer();
+            //ChangeDeviceState(deviceState, "ifRunningSerialPort1");
+
+            // 在构造函数中启动异步任务
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await StartPingTaskAsync();
+                }
+                catch (Exception ex)
+                {
+                    // 处理异常
+                    Console.WriteLine(ex);
+                }
+            });
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await StateMonitor();
+                }
+                catch (Exception ex)
+                {
+                    // 处理异常
+                    Console.WriteLine(ex);
+                }
+            });
+
         }
 
         public void ChangeDeviceState(deviceState device, string propertyName)
@@ -123,6 +183,28 @@ namespace DataAcquisitionServerApp
             }
         }
 
+        public async Task StateMonitor()
+        {
+            while (true)
+            {
+                // 检查 TCP 服务器状态
+                if (!_tcpServer.IsRunning)
+                {
+                    // TCP 服务器已停止，抛出错误或进行其他处理
+                    Console.WriteLine("The TCP server is shut down abnormally ！");
+                }
+
+                //// 检查 WebSocket 服务器状态
+                //if (!_webSocketServer.IsRunning)
+                //{
+                //    // WebSocket 服务器已停止，抛出错误或进行其他处理
+                //    Console.WriteLine("WebSocket 服务器已停止运行！");
+                //}
+
+                // 等待一段时间再进行下一次检查
+                await Task.Delay(TimeSpan.FromSeconds(5));
+            }
+        }
 
         public async Task RunAsync()
         {
@@ -640,6 +722,63 @@ namespace DataAcquisitionServerApp
                              .Where(x => x % 2 == 0)
                              .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
                              .ToArray();
+        }
+
+        public async Task StartPingTaskAsync()
+        {
+            // 创建一个新的 Ping 对象
+            var ping = new System.Net.NetworkInformation.Ping();
+
+            while (true)
+            {
+                try
+                {
+                    // 使用数据库帮助类来执行数据库操作
+                    var dbHelper = new DatabaseHelper("Server=192.168.1.105;Database=fct_db;Uid=root;Pwd=root;");
+
+                    // 查询所有设备的 IP 端点
+                    var query = "SELECT imei, ipEndPoint FROM fct_device_code";
+                    var dataTable = dbHelper.ExecuteQuery(query);
+
+                    var deviceList = new List<(string Imei, string IpEndPoint)>();
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        deviceList.Add((row["imei"].ToString(), row["ipEndPoint"].ToString()));
+                    }
+
+                    foreach (var device in deviceList)
+                    {
+                        // 解析设备的 IP 地址和端口
+                        var ipEndPoint = IPEndPoint.Parse(device.IpEndPoint);
+
+                        try
+                        {
+                            // 发送 ICMP echo 请求
+                            var reply = await ping.SendPingAsync(ipEndPoint.Address);
+
+                            // 根据响应来判断设备是否在线
+                            var onlineState = reply.Status == System.Net.NetworkInformation.IPStatus.Success ? "1" : "0";
+
+                            // 更新设备的在线状态
+                            query = $"UPDATE fct_device_code SET onlineState = '{onlineState}' WHERE imei = '{device.Imei}'";
+                            dbHelper.ExecuteNonQuery(query);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error pinging device {device.Imei}: {ex.Message}");
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                    throw;
+                }
+             
+
+                // 等待一段时间再进行下一轮的 ping
+                await Task.Delay(TimeSpan.FromMinutes(1));
+            }
         }
 
 

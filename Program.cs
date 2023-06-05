@@ -1,5 +1,6 @@
 using DataAcquisitionServerApp;
 using DataAcquisitionServerAppWithWebPage.Data;
+using DataAcquisitionServerAppWithWebPage.Service;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,10 +16,12 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.Requ
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 //builder.Services.AddScoped<AuthenticationStateProvider, ApiAuthenticationStateProvider>();
-builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddSingleton<DataAcquisitionService>();
 builder.Services.AddSingleton<ApiAuthenticationStateProvider>();
 builder.Services.AddSingleton<MqttService>();
+builder.Services.AddSingleton<TcpServer>();
+builder.Services.AddSingleton<WebSocketServer>();
+builder.Services.AddSingleton<SerialPortIOServer>();
 
 var app = builder.Build();
 
