@@ -34,7 +34,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                     options.AddListener(new ListenOptions
                     {
                         Ip = "Any",
-                        Port = 5000
+                        Port = Convert.ToInt16(ConfigurationHelper.GetPortValue("webServiceConfig.xml", "webSocketPort", "add", "port"))
                     });
                 })
                 .UseWebSocketMessageHandler(async (session, message) =>

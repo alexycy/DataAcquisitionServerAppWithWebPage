@@ -1,6 +1,7 @@
 ﻿using MySql.Data.MySqlClient;
 using System;
 using System.Data;
+using System.Xml;
 
 namespace DataAcquisitionServerAppWithWebPage.Service
 {
@@ -10,9 +11,46 @@ namespace DataAcquisitionServerAppWithWebPage.Service
     {
         private string _connectionString;
 
-        public DatabaseHelper(string connectionString)
+        public DatabaseHelper()
         {
-            _connectionString = connectionString;
+            string connectionString;
+            XmlDocument doc = new XmlDocument();
+            doc.Load("databseConfig.xml"); // 加载 XML 文件
+
+            XmlNode node = doc.SelectSingleNode("/configuration/connectionStrings/add"); // 选择 XML 节点
+
+            if (node != null)
+            {
+                XmlAttribute attribute = node.Attributes["connectionString"]; // 获取连接字符串属性
+
+                if (attribute != null)
+                {
+                    connectionString = attribute.Value; // 获取连接字符串
+                    _connectionString = connectionString;
+
+                }
+            }
+
+
+            
+        }
+
+
+        public bool ChecSQLConnection()
+        {
+            try
+            {
+                using (var connection = new MySqlConnection(_connectionString))
+                {
+                    connection.Open();
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+
+                return false;
+            }
         }
 
         public DataTable ExecuteQuery(string query)

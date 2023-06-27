@@ -1,7 +1,9 @@
 ﻿using DataAcquisitionServerApp;
+using DataAcquisitionServerAppWithWebPage.Data;
 using DataAcquisitionServerAppWithWebPage.Protocol;
 using DataAcquisitionServerAppWithWebPage.Utilities;
 using Org.BouncyCastle.Ocsp;
+using Org.BouncyCastle.Utilities;
 using SuperSocket;
 using SuperSocket.ProtoBase;
 using SuperSocket.Server;
@@ -10,6 +12,8 @@ using System.Buffers.Binary;
 using System.Data;
 using System.Net;
 using System.Text;
+using System.Xml;
+using DataAcquisitionServerAppWithWebPage.Data;
 using static DataAcquisitionServerAppWithWebPage.Protocol.KDonlinemonitoring;
 
 namespace DataAcquisitionServerAppWithWebPage.Service
@@ -32,26 +36,100 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                 // Look for the start code in the current buffer
                 SequencePosition position = reader.Position;
                 bool startCodeFound = false;
-                while (reader.TryRead(out byte b))
+                bool endCodeFound = false;
+                int startCodePosition = 0;
+                int endCodePosition = 0;
+                ushort dataLength = 0;
+
+                try
                 {
-                    if (b == 0xA5) // First byte of the start code
+                    int loopCount = 0;
+                    while (reader.TryRead(out byte b))
                     {
-                        if (reader.TryRead(out byte nextB) && nextB == 0x5A) // Second byte of the start code
+                        loopCount++;
+                        if (!startCodeFound && b == 0xA5) // First byte of the start code
                         {
-                            startCodePosition = (int)reader.Consumed - 2; // Update the position of the start code
-                            headerLength = 8 + startCodePosition; // Update the header length
-                            startCodeFound = true;
-                            break;
+                            if (reader.TryRead(out byte nextB) && nextB == 0x5A) // Second byte of the start code
+                            {
+                                startCodePosition = (int)reader.Consumed - 2; // Update the position of the start code
+                                startCodeFound = true;
+
+                                // Skip the next 4 bytes (protocol version and reserved field)
+                                try
+                                {
+                                    reader.Advance(4);
+                                }
+                                catch (Exception)
+                                {
+
+                                    continue;
+                                } 
+
+                                // Read the data length
+                                if (!reader.TryReadBigEndian(out  dataLength))
+                                {
+                                    continue; // If out of bounds, continue to the next loop
+                                }
+
+                                // Skip the data field
+                                try
+                                {
+                                    reader.Advance(dataLength+2-1);
+                                }
+                                catch (Exception)
+                                {
+
+                                    continue;
+                                }
+                            }
+                        }
+                        else if (startCodeFound && !endCodeFound)
+                        {
+                            if (!reader.TryRead(out byte endFirstByte)) // Try to read the first byte of the end code
+                            {
+                                continue; // If out of bounds, continue to the next loop
+                            }
+                            if (endFirstByte == 0x5A) // Check if the first byte of the end code is correct
+                            {
+                                if (!reader.TryRead(out byte endSecondByte)) // Try to read the second byte of the end code
+                                {
+                                    continue; // If out of bounds, continue to the next loop
+                                }
+                                if (endSecondByte == 0xA5) // Check if the second byte of the end code is correct
+                                {
+                                    endCodePosition = (int)reader.Consumed - 2; // Update the position of the end code
+                                    endCodeFound = true;
+                                    // Reset the reader to the start code position
+                                    reader.Rewind((int)reader.Consumed);
+                                    reader.Advance(startCodePosition);
+
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (loopCount >= 100)
+                        {
+                            Thread.Sleep(10);
+                            continue;
                         }
                     }
+
+                    //if (reader.Sequence.Length>255*2)
+                    //{
+                    //    return null;
+                    //}
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                    Reset();
                 }
 
-                // Reset the reader to the original position
-                reader.Rewind((int)reader.Consumed);
-                reader.Advance(startCodePosition);
+                
 
                 // Now you can parse the package with the updated header length
-                if (startCodeFound)
+                if (startCodeFound&& endCodeFound)
                 {
                     var package = new ProtocolPackage();
                     try
@@ -60,12 +138,12 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                         if (reader.TryRead(out byte firstByte) && reader.TryRead(out byte secondByte))
                         {
                             package.StartCode = new byte[] { firstByte, secondByte };
-                            if (package.StartCode[0] != 0xA5 && package.StartCode[1] != 0x5A)
-                            {
-                                Console.WriteLine($"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
-                                reader.Advance(1);
-                                return null;
-                            }
+                            //if (package.StartCode[0] != 0xA5 && package.StartCode[1] != 0x5A)
+                            //{
+                            //    Console.WriteLine($"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
+                            //    reader.Advance(1);
+                            //    return null;
+                            //}
                         }
                         // read protocol version
                         if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
@@ -78,7 +156,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                             package.ReservedField = new byte[] { firstByte, secondByte };
                         }
                         // read data length
-                        reader.TryReadBigEndian(out ushort dataLength);
+                        reader.TryReadBigEndian(out  dataLength);
                         package.DataLength = dataLength;
 
                         // read data
@@ -115,15 +193,28 @@ namespace DataAcquisitionServerAppWithWebPage.Service
 
                         var checkSum = CheckAlgorithm.CalculateCrc16(result);
                         var originalcheckSum = BitConverter.ToUInt16(package.CheckCode, 0);
-                        if (originalcheckSum != checkSum)
+                        if (originalcheckSum != checkSum && (endCodePosition-startCodePosition == 10+dataLength))
                         {
                             Console.WriteLine("Check failed, the message is invalid!!");
+                            string hex = BitConverter.ToString(result).Replace("-", "");
+                            Console.WriteLine($"{DateTime.Now}");
+                            Console.WriteLine(hex);
+                            Console.WriteLine($"checkSum:{originalcheckSum.ToString("X4")}");
+                            Console.WriteLine($"cal checkSum:{checkSum.ToString("X4")}");
                             return null;
                         }
+                        else if (originalcheckSum != checkSum && (endCodePosition - startCodePosition > 10 + dataLength))
+                        {
+                            reader.Advance(endCodePosition+2);
+                            return null;
+                        }
+
                     }
                     catch (Exception e)
                     {
+                        Console.WriteLine($"{DateTime.Now}");
                         Console.WriteLine($"{e}");
+                        return null;
                     }
 
 
@@ -228,7 +319,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
         //                reader.Advance(dataLength);
         //            }
 
-        //            package.Data = data.ToArray();
+        //            package.DataGlobal = data.ToArray();
 
         //            // read check code
         //            if (reader.TryRead(out firstByte) && reader.TryRead(out secondByte))
@@ -267,17 +358,34 @@ namespace DataAcquisitionServerAppWithWebPage.Service
             {
                 try
                 {
+
                     List<byte> list = new List<byte>();
                     list.AddRange(p.StartCode);
                     list.AddRange(p.ProtocolVersion);
                     list.AddRange(p.ReservedField);
                     list.AddRange(BitConverter.GetBytes(BinaryPrimitives.ReverseEndianness(p.DataLength)));
                     list.AddRange(p.Data);
-
+                    
                     byte[] result = list.ToArray();
 
+                    //StringBuilder str = new StringBuilder(result.Length * 2);
+                    //foreach (byte b in result)
+                    //{
+                    //    str.AppendFormat("{0:x2}", b);
+                    //}
+                    //Console.WriteLine(str);
+
                     var checkSum = CheckAlgorithm.CalculateCrc16(result);
-                    var originalcheckSum = BitConverter.ToUInt16(p.CheckCode, 0);
+                    UInt16 originalcheckSum = 0;
+                    try
+                    {
+                        originalcheckSum = BitConverter.ToUInt16(p.CheckCode, 0);
+                    }
+                    catch (Exception)
+                    {
+
+                    }
+                  
                     if (originalcheckSum != checkSum)
                     {
                         Console.WriteLine("校验失败，报文无效!");
@@ -326,136 +434,159 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                             case 0x0001:
                                 break;
                             case 0x0002:
-                                //创建一个新的异步任务来处理数据库操作
-                                await Task.Run(async () =>
+
+                                if (SystemState.canConnectSQL)
                                 {
-                                    //使用数据库帮助类来执行数据库操作
-                                    var dbHelper = new DatabaseHelper("Server=192.168.1.105;Database=fct_db;Uid=root;Pwd=root;");
-
-                                    //插入数据记录   
-                                    var query = $"INSERT INTO fct_measure (imei, current,time,createTime,indexNumber) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}','{quadraticRev.DCBiasCurrentMeasurementResult}','{quadraticRev.DataCollectionTime.ToString("yyyy-MM-dd HH:mm:ss.fff")}','{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}','{quadraticRev.IndexNum}')";
-                                    var resault = dbHelper.ExecuteNonQuery(query);
-
-
-                                    query = "SELECT imei, ipEndPoint FROM fct_device_code";
-                                    var dataTable = dbHelper.ExecuteQuery(query);
-
-                                    var deviceList = new List<(string Imei, string IpEndPoint)>();
-                                    foreach (DataRow row in dataTable.Rows)
+                                    //创建一个新的异步任务来处理数据库操作
+                                    await Task.Run(async () =>
                                     {
-                                        deviceList.Add((row["imei"].ToString(), row["ipEndPoint"].ToString()));
-                                    }
-
-                                    var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
-                                    if (ipEndPoint != null)
-                                    {
-                                        var imei = BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper();
-
-                                        var device = deviceList.FirstOrDefault(d => d.Imei == imei);
-
-
-                                        if (device.Imei == null)
+                                        //使用数据库帮助类来执行数据库操作
+                                        var dbHelper = new DatabaseHelper();
+                                        string query;
+                                        //插入数据记录   
+                                        lock (DataGlobal.dbLock)
                                         {
-                                            // If the IMEI does not exist, insert it into the fct_device_code
-                                            query = $"INSERT INTO fct_device_code (imei, ipEndPoint,onlineState) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}', '{ipEndPoint}','1')";
-                                            dbHelper.ExecuteNonQuery(query);
+                                            query = $"INSERT INTO `{DataGlobal.nowRecordTableName}`(imei, current,time,createTime,indexNumber) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}','{quadraticRev.DCBiasCurrentMeasurementResult}','{quadraticRev.DataCollectionTime.ToString("yyyy-MM-dd HH:mm:ss.fff")}','{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}','{quadraticRev.IndexNum}')";
+                                            var resault = dbHelper.ExecuteNonQuery(query);
                                         }
-                                        else if (device.IpEndPoint != ipEndPoint.ToString())
+                                      
+
+
+                                        query = "SELECT imei, ipEndPoint FROM fct_device_code";
+                                        var dataTable = dbHelper.ExecuteQuery(query);
+
+                                        var deviceList = new List<(string Imei, string IpEndPoint)>();
+                                        foreach (DataRow row in dataTable.Rows)
                                         {
-                                            // If the IMEI exists but the ipEndPoint does not match, update the current ipEndPoint in the fct_device_code
-                                            query = $"UPDATE fct_device_code SET ipEndPoint = '{ipEndPoint}' WHERE imei = '{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}'";
-                                            dbHelper.ExecuteNonQuery(query);
+                                            deviceList.Add((row["imei"].ToString(), row["ipEndPoint"].ToString()));
                                         }
-                                        // If both match, do not perform any database operations
-                                    }
+
+                                        var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
+                                        if (ipEndPoint != null)
+                                        {
+                                            var imei = BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper();
+
+                                            var device = deviceList.FirstOrDefault(d => d.Imei == imei);
 
 
-                                });
+                                            if (device.Imei == null)
+                                            {
+
+                                                    // If the IMEI does not exist, insert it into the fct_device_code
+                                                    query = $"INSERT INTO fct_device_code (imei, ipEndPoint,onlineState) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}', '{ipEndPoint}','1')";
+                                                    dbHelper.ExecuteNonQuery(query);
+                                                
+               
+                                            }
+                                            else if (device.IpEndPoint != ipEndPoint.ToString())
+                                            {
+                                    
+                                                    // If the IMEI exists but the ipEndPoint does not match, update the current ipEndPoint in the fct_device_code
+                                                    query = $"UPDATE fct_device_code SET ipEndPoint = '{ipEndPoint}' WHERE imei = '{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}'";
+                                                    dbHelper.ExecuteNonQuery(query);
+                                                
+                                            }
+                                            // If both match, do not perform any database operations
+                                        }
+
+
+                                    });
+                                }
+                               
                                 break;
                             case 0x0004:
-                                //创建一个新的异步任务来处理数据库操作
-                                await Task.Run(async () =>
+                                if (SystemState.canConnectSQL)
                                 {
-                                    //使用数据库帮助类来执行数据库操作
-                                    var dbHelper = new DatabaseHelper("Server=192.168.1.105;Database=fct_db;Uid=root;Pwd=root;");
-
-                                    var query = "SELECT imei, ipEndPoint FROM fct_device_code";
-                                    var dataTable = dbHelper.ExecuteQuery(query);
-
-                                    var deviceList = new List<(string Imei, string IpEndPoint)>();
-                                    foreach (DataRow row in dataTable.Rows)
+                                    //创建一个新的异步任务来处理数据库操作
+                                    await Task.Run(async () =>
                                     {
-                                        deviceList.Add((row["imei"].ToString(), row["ipEndPoint"].ToString()));
-                                    }
+                                        //使用数据库帮助类来执行数据库操作
+                                        var dbHelper = new DatabaseHelper();
 
-                                    var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
+                                        var query = "SELECT imei, ipEndPoint FROM fct_device_code";
+                                        var dataTable = dbHelper.ExecuteQuery(query);
 
-                                    if (ipEndPoint != null)
-                                    {
-                                        var imei = BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper();
-
-                                        var device = deviceList.FirstOrDefault(d => d.Imei == imei);
-
-
-                                        if (device.Imei == null)
+                                        var deviceList = new List<(string Imei, string IpEndPoint)>();
+                                        foreach (DataRow row in dataTable.Rows)
                                         {
-                                            // If the IMEI does not exist, insert it into the fct_device_code
-                                            query = $"INSERT INTO fct_device_code (imei, ipEndPoint,onlineState) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}', '{ipEndPoint}','1')";
-                                            dbHelper.ExecuteNonQuery(query);
+                                            deviceList.Add((row["imei"].ToString(), row["ipEndPoint"].ToString()));
                                         }
-                                        else if (device.IpEndPoint != ipEndPoint.ToString())
+
+                                        var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
+
+                                        if (ipEndPoint != null)
                                         {
-                                            // If the IMEI exists but the ipEndPoint does not match, update the current ipEndPoint in the fct_device_code
-                                            query = $"UPDATE fct_device_code SET ipEndPoint = '{ipEndPoint}' WHERE imei = '{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}'";
-                                            dbHelper.ExecuteNonQuery(query);
+                                            var imei = BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper();
+
+                                            var device = deviceList.FirstOrDefault(d => d.Imei == imei);
+
+
+                                            if (device.Imei == null)
+                                            {
+                                                // If the IMEI does not exist, insert it into the fct_device_code
+                                                query = $"INSERT INTO fct_device_code (imei, ipEndPoint,onlineState) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}', '{ipEndPoint}','1')";
+                                                dbHelper.ExecuteNonQuery(query);
+                                            }
+                                            else if (device.IpEndPoint != ipEndPoint.ToString())
+                                            {
+                                                // If the IMEI exists but the ipEndPoint does not match, update the current ipEndPoint in the fct_device_code
+                                                query = $"UPDATE fct_device_code SET ipEndPoint = '{ipEndPoint}' WHERE imei = '{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}'";
+                                                dbHelper.ExecuteNonQuery(query);
+                                            }
+                                            // If both match, do not perform any database operations
                                         }
-                                        // If both match, do not perform any database operations
-                                    }
 
 
-                                });
+                                    });
+                                }
+                             
                                 break;
                             case 0x1001:
                                 break;
                             case 0x1002:
                                 break;
                             case 0x1003:
-                                await Task.Run(async () =>
+                                if (SystemState.canConnectSQL)
                                 {
-                                    //使用数据库帮助类来执行数据库操作
-                                    var dbHelper = new DatabaseHelper("Server=192.168.1.105;Database=fct_db;Uid=root;Pwd=root;");
-
-                                    var query  = $"SELECT  code FROM fct_device_code WHERE imei = '{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}'";
-                                   
-                                    var dataTable = dbHelper.ExecuteQuery(query);
-                                    string codeNum  =null;
-                                    foreach (DataRow row in dataTable.Rows)
+                                    await Task.Run(async () =>
                                     {
-                                        codeNum = row["code"].ToString();
-                                    }
-                                    if (codeNum != null)
-                                    {
+                                        //使用数据库帮助类来执行数据库操作
+                                        var dbHelper = new DatabaseHelper();
 
-                                        query = $"SELECT  code FROM fct_setting WHERE code = '{codeNum}'";
+                                        var query = $"SELECT  code FROM fct_device_code WHERE imei = '{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}'";
 
-                                        var rec = dbHelper.ExecuteQuery(query);
-
-                                        if (rec != null)
+                                        var dataTable = dbHelper.ExecuteQuery(query);
+                                        string codeNum = null;
+                                        foreach (DataRow row in dataTable.Rows)
                                         {
-                                            // If the IMEI exists but the ipEndPoint does not match, update the current ipEndPoint in the fct_device_code
-                                            query = $"UPDATE fct_setting SET `interval` = '{quadraticRev.SamplingData.Frequency}'," +
-                                            $"soc = '{quadraticRev.SamplingData.Frequency}'," +
-                                            $"temprature = '{quadraticRev.SamplingData.Frequency}'," +
-                                            $"sdSize = '{quadraticRev.SamplingData.SDUsedSpace}/{quadraticRev.SamplingData.SDTotalSpace}'," +
-                                            $"workinghours = '{quadraticRev.SamplingData.WorkingDuration}'" +
-                                            $" WHERE code = '{codeNum}'";
-                                            dbHelper.ExecuteNonQuery(query);
+                                            codeNum = row["code"].ToString();
                                         }
-                                        // If both match, do not perform any database operations
-                                    }
+                                        if (codeNum != null)
+                                        {
+
+                                            query = $"SELECT  code FROM fct_setting WHERE code = '{codeNum}'";
+
+                                            var rec = dbHelper.ExecuteQuery(query);
+
+                                            if (rec != null)
+                                            {
+                                                // If the IMEI exists but the ipEndPoint does not match, update the current ipEndPoint in the fct_device_code
+                                                query = $"UPDATE fct_setting SET `interval` = '{quadraticRev.SamplingData.Frequency}'," +
+                                                $"soc = '{quadraticRev.SamplingData.BatteryVoltage}'," +
+                                                $"temprature = '{quadraticRev.SamplingData.Temperature}'," +
+                                                $"sdSize = '{quadraticRev.SamplingData.SDUsedSpace}/{quadraticRev.SamplingData.SDTotalSpace}'," +
+                                                $"workinghours = '{quadraticRev.SamplingData.WorkingDuration}'," +
+                                                $"runState = '{quadraticRev.SamplingData.SamplingState}'" +
+                                                $" WHERE code = '{codeNum}'";
+                                                dbHelper.ExecuteNonQuery(query);
+                                            }
+                                            // If both match, do not perform any database operations
+                                        }
 
 
-                                });
+                                    });
+                                }
+                               
                                 break;
                             case 0x2001:
                                 break;
@@ -486,9 +617,10 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                 options.AddListener(new ListenOptions
                 {
                     Ip = "Any",
-                    Port = 9009
+                    Port = Convert.ToInt16(ConfigurationHelper.GetPortValue("webServiceConfig.xml", "tcpServerPort", "add", "port"))
                 }
-                );
+                ); 
+
             })
             .UseSessionHandler(async (s) =>
             {
@@ -506,33 +638,36 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                     {
                         sessions.Add(s);
                     }
-
-                    // 使用数据库帮助类来执行数据库操作
-                    var dbHelper = new DatabaseHelper("Server=192.168.1.105;Database=fct_db;Uid=root;Pwd=root;");
-
-                    // 更新设备的在线状态
-                    var query = $"UPDATE fct_device_code SET onlineState = '1' WHERE ipEndPoint = '{ipEndPoint}'";
-                    dbHelper.ExecuteNonQuery(query);
-
-                    query = "SELECT ipEndPoint FROM fct_device_code";
-                    var dataTable = dbHelper.ExecuteQuery(query);
-
-                    var deviceList = new List<(string ip, string port)>();
-                    foreach (DataRow row in dataTable.Rows)
+                    if (SystemState.canConnectSQL)
                     {
-                        var ipEndPointTmp = row["ipEndPoint"].ToString().Split(':');
-                        deviceList.Add((ipEndPointTmp[0], ipEndPointTmp[1]));
-                    }
+                        // 使用数据库帮助类来执行数据库操作
+                        var dbHelper = new DatabaseHelper();
 
-
-                    var device = deviceList.FirstOrDefault(d => d.ip == ipEndPoint.Address.ToString());
-                    
-                    if (device.port != ipEndPoint.Port.ToString())
-                    {
-                        // If the IP exists but the port does not match, update the current ipEndPoint in the fct_device_code
-                        query = $"UPDATE fct_device_code SET ipEndPoint = '{ipEndPoint}' WHERE ipEndPoint = '{device.ip}:{device.port}'";
+                        // 更新设备的在线状态
+                        var query = $"UPDATE fct_device_code SET onlineState = '1' WHERE ipEndPoint = '{ipEndPoint}'";
                         dbHelper.ExecuteNonQuery(query);
+
+                        query = "SELECT ipEndPoint FROM fct_device_code";
+                        var dataTable = dbHelper.ExecuteQuery(query);
+
+                        var deviceList = new List<(string ip, string port)>();
+                        foreach (DataRow row in dataTable.Rows)
+                        {
+                            var ipEndPointTmp = row["ipEndPoint"].ToString().Split(':');
+                            deviceList.Add((ipEndPointTmp[0], ipEndPointTmp[1]));
+                        }
+
+
+                        var device = deviceList.FirstOrDefault(d => d.ip == ipEndPoint.Address.ToString());
+
+                        if (device.port != ipEndPoint.Port.ToString())
+                        {
+                            // If the IP exists but the port does not match, update the current ipEndPoint in the fct_device_code
+                            query = $"UPDATE fct_device_code SET ipEndPoint = '{ipEndPoint}' WHERE ipEndPoint = '{device.ip}:{device.port}'";
+                            dbHelper.ExecuteNonQuery(query);
+                        }
                     }
+                   
 
                 }
             }, async (s, e) =>
@@ -547,16 +682,19 @@ namespace DataAcquisitionServerAppWithWebPage.Service
 
                 // 获取设备的 IP 端点
                 var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
-
-                if (ipEndPoint != null)
+                if (SystemState.canConnectSQL)
                 {
-                    // 使用数据库帮助类来执行数据库操作
-                    var dbHelper = new DatabaseHelper("Server=192.168.1.105;Database=fct_db;Uid=root;Pwd=root;");
+                    if (ipEndPoint != null)
+                    {
+                        // 使用数据库帮助类来执行数据库操作
+                        var dbHelper = new DatabaseHelper();
 
-                    // 更新设备的在线状态
-                    var query = $"UPDATE fct_device_code SET onlineState = '0' WHERE ipEndPoint = '{ipEndPoint}'";
-                    dbHelper.ExecuteNonQuery(query);
+                        // 更新设备的在线状态
+                        var query = $"UPDATE fct_device_code SET onlineState = '0' WHERE ipEndPoint = '{ipEndPoint}'";
+                        dbHelper.ExecuteNonQuery(query);
+                    }
                 }
+
             })
             .ConfigureLogging((hostCtx, loggingBuilder) =>
             {
@@ -611,8 +749,6 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                 return Enumerable.Empty<IAppSession>();
             }
         }
-
-
 
     }
 }

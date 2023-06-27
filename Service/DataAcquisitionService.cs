@@ -14,6 +14,12 @@ using Newtonsoft.Json;
 using SuperSocket;
 using DataAcquisitionServerAppWithWebPage.Service;
 using System.Data;
+using DataAcquisitionServerAppWithWebPage.Data;
+using MySql.Data.MySqlClient;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
+using System.Xml;
+using Google.Protobuf.WellKnownTypes;
+using System.Timers;
 
 namespace DataAcquisitionServerApp
 {
@@ -91,6 +97,8 @@ namespace DataAcquisitionServerApp
         int _clientCount = 0;
         private WebSocketServer? _webSocketServer;
         private SerialPortIOServer? _serialIOPortServer;
+        private static System.Timers.Timer timer;
+
 
         public  DataAcquisitionService(IServiceProvider serviceProvider)
         {
@@ -101,7 +109,27 @@ namespace DataAcquisitionServerApp
             _webSocketServer = serviceProvider.GetService(typeof(WebSocketServer)) as WebSocketServer;
             _serialIOPortServer = serviceProvider.GetService(typeof(SerialPortIOServer)) as SerialPortIOServer;
 
-            
+
+            DataGlobal.nowRecordTableName = GetNowRecordTableName();
+
+
+            // Calculate the time until midnight
+            TimeSpan timeToMidnight = DateTime.Today.AddDays(1) - DateTime.Now;
+
+            // Create a timer
+            timer = new System.Timers.Timer();
+
+            // Set the timer to execute the CreateNewTable method once a day
+            timer.Elapsed += CreateNewTable;
+
+            // Set the timer interval to 1 day in milliseconds
+            //timer.Interval = TimeSpan.FromDays(1).TotalMilliseconds;
+            timer.Interval = timeToMidnight.TotalMilliseconds;
+
+            // Start the timer after a delay
+            //Task.Delay(timeToMidnight).ContinueWith(t => timer.Start());
+            timer.Start();
+
 
 
 
@@ -161,6 +189,35 @@ namespace DataAcquisitionServerApp
 
         }
 
+
+        private static void CreateNewTable(Object source, System.Timers.ElapsedEventArgs e)
+        {
+            lock (DataGlobal.dbLock)
+            {
+                // Get the current date
+                string date = DateTime.Now.ToString("yyyyMMdd");
+
+                // Create the new table name
+                string newTableName = "fct_measure_" + date;
+                var dbHelper = new DatabaseHelper();
+                var query = $"SHOW TABLES LIKE '{newTableName}'";
+                DataTable dt = dbHelper.ExecuteQuery(query);
+                if (dt.Container == null)
+                {
+                    query = $"CREATE TABLE {newTableName} LIKE fct_measure";
+                    DataGlobal.nowRecordTableName = newTableName;
+                    dbHelper.ExecuteNonQuery(query);
+                    string name = DataGlobal.nowRecordTableName;
+                    SetTableName(name);
+
+                    Console.WriteLine($"Have created a new Table :{newTableName}");
+                }
+            }
+
+            timer.Interval = TimeSpan.FromDays(1).TotalMilliseconds;
+
+        }
+
         public void ChangeDeviceState(deviceState device, string propertyName)
         {
             // 获取device类型的指定属性
@@ -194,13 +251,15 @@ namespace DataAcquisitionServerApp
                     Console.WriteLine("The TCP server is shut down abnormally ！");
                 }
 
-                //// 检查 WebSocket 服务器状态
-                //if (!_webSocketServer.IsRunning)
-                //{
-                //    // WebSocket 服务器已停止，抛出错误或进行其他处理
-                //    Console.WriteLine("WebSocket 服务器已停止运行！");
-                //}
-
+                DatabaseHelper db = new DatabaseHelper();
+                
+                 
+                if (SystemState.canConnectSQL != db.ChecSQLConnection())
+                {
+                    SystemState.canConnectSQL = db.ChecSQLConnection();
+                    Console.WriteLine($"The State of Connecting to MySQL:{SystemState.canConnectSQL}");
+                }
+            
                 // 等待一段时间再进行下一次检查
                 await Task.Delay(TimeSpan.FromSeconds(5));
             }
@@ -734,7 +793,7 @@ namespace DataAcquisitionServerApp
                 try
                 {
                     // 使用数据库帮助类来执行数据库操作
-                    var dbHelper = new DatabaseHelper("Server=192.168.1.105;Database=fct_db;Uid=root;Pwd=root;");
+                    var dbHelper = new DatabaseHelper();
 
                     // 查询所有设备的 IP 端点
                     var query = "SELECT imei, ipEndPoint FROM fct_device_code";
@@ -780,6 +839,59 @@ namespace DataAcquisitionServerApp
                 await Task.Delay(TimeSpan.FromMinutes(1));
             }
         }
+
+
+
+        public static void SetTableName(string value)
+        {
+            XmlDocument doc = new XmlDocument();
+            doc.Load("databseConfig.xml"); // Load the XML file
+
+            XmlNode node = doc.SelectSingleNode("/configuration/connectionStrings/table"); // Select the XML node
+
+            if (node != null)
+            {
+                XmlAttribute attribute = node.Attributes["tableName"]; // Get the tableName attribute
+
+                if (attribute != null)
+                {
+                    attribute.Value = value; // Set the tableName attribute
+                    doc.Save("databseConfig.xml"); // Save the changes
+                }
+            }
+        }
+
+
+        private string GetNowRecordTableName()
+        {
+            string tableName;
+            XmlDocument doc = new XmlDocument();
+            doc.Load("databseConfig.xml"); // 加载 XML 文件
+
+            XmlNode node = doc.SelectSingleNode("/configuration/connectionStrings/table"); // 选择 XML 节点
+
+            if (node != null)
+            {
+                XmlAttribute attribute = node.Attributes["tableName"]; // 获取连接字符串属性
+
+                if (attribute != null)
+                {
+                    tableName = attribute.Value; // 获取连接字符串
+                    return tableName;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+            else
+            {
+                return null;
+            }
+
+
+        }
+
 
 
     }

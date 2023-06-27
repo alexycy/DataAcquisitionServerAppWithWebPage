@@ -1,0 +1,6 @@
+<configuration>
+  <connectionStrings>
+    <add name="MyDB" connectionString="Server=192.168.1.103;Database=fct_db;Uid=root;Pwd=kddq1989;allowPublicKeyRetrieval=true" />
+    <table name="TableName" tableName="fct_measure_20230620" />
+  </connectionStrings>
+</configuration>

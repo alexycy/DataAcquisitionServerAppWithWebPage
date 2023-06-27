@@ -135,14 +135,23 @@ namespace DataAcquisitionServerAppWithWebPage.Protocol
                 reversedCurrentBytes = data.Skip(5).Take(4).Reverse().ToArray();
                 samplingData.Temperature = BitConverter.ToSingle(reversedCurrentBytes, 0);
                 reversedCurrentBytes = data.Skip(9).Take(2).Reverse().ToArray();
-                reversedCurrentBytes = data.Skip(9).Take(2).Reverse().ToArray();
                 samplingData.SDUsedSpace = BitConverter.ToUInt16(reversedCurrentBytes, 0);
                 reversedCurrentBytes = data.Skip(11).Take(2).Reverse().ToArray();
                 samplingData.SDTotalSpace = BitConverter.ToUInt16(reversedCurrentBytes, 0);
                 reversedCurrentBytes = data.Skip(13).Take(4).Reverse().ToArray();
                 samplingData.WorkingDuration = BitConverter.ToUInt32(reversedCurrentBytes, 0);
-              
-                //Console.WriteLine("Sampling Data:");
+                reversedCurrentBytes = data.Skip(17).Take(1).Reverse().ToArray();
+
+                if (BitConverter.ToBoolean(reversedCurrentBytes, 0))
+                {
+                    samplingData.SamplingState = 1;
+                }
+                else
+                {
+                    samplingData.SamplingState = 0;
+                }
+                
+                //Console.WriteLine("Sampling DataGlobal:");
                 //Console.WriteLine("Frequency: " + samplingData.Frequency);
                 //Console.WriteLine("Battery Voltage: " + samplingData.BatteryVoltage);
                 //Console.WriteLine("Temperature: " + samplingData.Temperature);
@@ -191,7 +200,7 @@ namespace DataAcquisitionServerAppWithWebPage.Protocol
                 float current = BitConverter.ToSingle(reversedCurrentBytes, 0);
                 int indexNum = data[12];
                 DateTime timestamp = new DateTime(year, month, day, hour, minute, second, millisecond);
-                //Console.WriteLine("Data Collection Time: " + timestamp);
+                //Console.WriteLine("DataGlobal Collection Time: " + timestamp);
                 //Console.WriteLine("DC Bias Current Measurement Result: " + current);
 
                 return new ParsedData { DataCollectionTime = timestamp ,DCBiasCurrentMeasurementResult = current ,IndexNum = indexNum };
@@ -250,6 +259,7 @@ namespace DataAcquisitionServerAppWithWebPage.Protocol
             public ushort SDUsedSpace { get; set; }
             public ushort SDTotalSpace { get; set; }
             public uint WorkingDuration { get; set; }
+            public int SamplingState { get; set; }
         }
 
 

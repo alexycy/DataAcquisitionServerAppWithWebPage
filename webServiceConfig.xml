@@ -1,0 +1,8 @@
+﻿<configuration>
+  <webSocketPort>
+    <add name="Port" port="5005" />
+  </webSocketPort>
+  <tcpServerPort>
+    <add name="Port" port="9009" />
+  </tcpServerPort>
+</configuration>
