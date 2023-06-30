@@ -514,6 +514,11 @@ namespace DataAcquisitionServerAppWithWebPage.Service
 
                                         var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
 
+                                        // 更新设备的在线状态
+                                        query = $"UPDATE fct_device_code SET onlineState = '1' WHERE ipEndPoint = '{ipEndPoint}'";
+                                        dbHelper.ExecuteNonQuery(query);
+
+
                                         if (ipEndPoint != null)
                                         {
                                             var imei = BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper();

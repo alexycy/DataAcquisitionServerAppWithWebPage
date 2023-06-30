@@ -787,17 +787,20 @@ namespace DataAcquisitionServerApp
         {
             // 创建一个新的 Ping 对象
             var ping = new System.Net.NetworkInformation.Ping();
-
+            // 使用数据库帮助类来执行数据库操作
+            var dbHelper = new DatabaseHelper();
             while (true)
             {
                 try
                 {
-                    // 使用数据库帮助类来执行数据库操作
-                    var dbHelper = new DatabaseHelper();
-
                     // 查询所有设备的 IP 端点
-                    var query = "SELECT imei, ipEndPoint FROM fct_device_code";
-                    var dataTable = dbHelper.ExecuteQuery(query);
+                    DataTable dataTable = new DataTable();
+                    lock (DataGlobal.dbLock)
+                    {
+                        var query = "SELECT imei, ipEndPoint FROM fct_device_code";
+                        dataTable = dbHelper.ExecuteQuery(query);
+                    }
+                  
 
                     var deviceList = new List<(string Imei, string IpEndPoint)>();
                     foreach (DataRow row in dataTable.Rows)
@@ -817,10 +820,17 @@ namespace DataAcquisitionServerApp
 
                             // 根据响应来判断设备是否在线
                             var onlineState = reply.Status == System.Net.NetworkInformation.IPStatus.Success ? "1" : "0";
+                            if(onlineState == "0")
+                            {
+                                // 更新设备的在线状态
+                                lock (DataGlobal.dbLock)
+                                {
+                                    var query = $"UPDATE fct_device_code SET onlineState = '{onlineState}' WHERE imei = '{device.Imei}'";
+                                    dbHelper.ExecuteNonQuery(query);
+                                }
+                            }
 
-                            // 更新设备的在线状态
-                            query = $"UPDATE fct_device_code SET onlineState = '{onlineState}' WHERE imei = '{device.Imei}'";
-                            dbHelper.ExecuteNonQuery(query);
+
                         }
                         catch (Exception ex)
                         {
