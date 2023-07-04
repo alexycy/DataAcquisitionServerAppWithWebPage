@@ -192,29 +192,38 @@ namespace DataAcquisitionServerApp
 
         private static void CreateNewTable(Object source, System.Timers.ElapsedEventArgs e)
         {
-            lock (DataGlobal.dbLock)
+            try
             {
-                // Get the current date
-                string date = DateTime.Now.ToString("yyyyMMdd");
-
-                // Create the new table name
-                string newTableName = "fct_measure_" + date;
-                var dbHelper = new DatabaseHelper();
-                var query = $"SHOW TABLES LIKE '{newTableName}'";
-                DataTable dt = dbHelper.ExecuteQuery(query);
-                if (dt.Container == null)
+                lock (DataGlobal.dbLock)
                 {
-                    query = $"CREATE TABLE {newTableName} LIKE fct_measure";
-                    DataGlobal.nowRecordTableName = newTableName;
-                    dbHelper.ExecuteNonQuery(query);
-                    string name = DataGlobal.nowRecordTableName;
-                    SetTableName(name);
+                    // Get the current date
+                    string date = DateTime.Now.ToString("yyyyMMdd");
 
-                    Console.WriteLine($"Have created a new Table :{newTableName}");
+                    // Create the new table name
+                    string newTableName = "fct_measure_" + date;
+                    var dbHelper = new DatabaseHelper();
+                    var query = $"SHOW TABLES LIKE '{newTableName}'";
+                    DataTable dt = dbHelper.ExecuteQuery(query);
+                    if (dt.Container == null)
+                    {
+                        query = $"CREATE TABLE {newTableName} LIKE fct_measure";
+                        DataGlobal.nowRecordTableName = newTableName;
+                        dbHelper.ExecuteNonQuery(query);
+                        string name = DataGlobal.nowRecordTableName;
+                        SetTableName(name);
+
+                        Console.WriteLine($"Have created a new Table :{newTableName}");
+                    }
                 }
+
+                timer.Interval = TimeSpan.FromDays(1).TotalMilliseconds;
+            }
+            catch (Exception)
+            {
+
+                Console.WriteLine("Failed to create a database table！");
             }
 
-            timer.Interval = TimeSpan.FromDays(1).TotalMilliseconds;
 
         }
 
@@ -793,13 +802,13 @@ namespace DataAcquisitionServerApp
             {
                 try
                 {
+
                     // 查询所有设备的 IP 端点
                     DataTable dataTable = new DataTable();
-                    lock (DataGlobal.dbLock)
-                    {
-                        var query = "SELECT imei, ipEndPoint FROM fct_device_code";
-                        dataTable = dbHelper.ExecuteQuery(query);
-                    }
+
+                    var query = "SELECT imei, ipEndPoint FROM fct_device_code";
+                    dataTable = dbHelper.ExecuteQuery(query);
+
                   
 
                     var deviceList = new List<(string Imei, string IpEndPoint)>();
@@ -823,12 +832,10 @@ namespace DataAcquisitionServerApp
                             if(onlineState == "0")
                             {
                                 // 更新设备的在线状态
-                                lock (DataGlobal.dbLock)
-                                {
-                                    var query = $"UPDATE fct_device_code SET onlineState = '{onlineState}' WHERE imei = '{device.Imei}'";
+
+                                    query = $"UPDATE fct_device_code SET onlineState = '{onlineState}' WHERE imei = '{device.Imei}'";
                                     dbHelper.ExecuteNonQuery(query);
-                                }
-                            }
+                            }                            
 
 
                         }
