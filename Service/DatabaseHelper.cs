@@ -10,6 +10,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
     public class DatabaseHelper
     {
         private string _connectionString;
+        private MySqlTransaction _transaction;
 
         public DatabaseHelper()
         {
@@ -83,6 +84,28 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                 }
             }
         }
+
+        
+
+        public void BeginTransaction()
+        {
+            var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+            _transaction = connection.BeginTransaction();
+        }
+
+        public void CommitTransaction()
+        {
+            _transaction.Commit();
+            _transaction.Connection.Close();
+        }
+
+        public void RollbackTransaction()
+        {
+            _transaction.Rollback();
+            _transaction.Connection.Close();
+        }
+
     }
 
 }

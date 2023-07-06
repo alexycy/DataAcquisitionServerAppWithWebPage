@@ -15,15 +15,22 @@ using System.Text;
 using System.Xml;
 using DataAcquisitionServerAppWithWebPage.Data;
 using static DataAcquisitionServerAppWithWebPage.Protocol.KDonlinemonitoring;
+using Microsoft.EntityFrameworkCore.Query.Internal;
 
 namespace DataAcquisitionServerAppWithWebPage.Service
 {
+    
     public class TcpServer
     {
-
+        private static ILogger _logger;
         public List<IAppSession> sessions = new List<IAppSession>();
 
 
+
+        public TcpServer(ILogger<TcpServer> logger)
+        {
+            _logger = logger;
+        }
         public class MyCustomProtocolFilter : PipelineFilterBase<ProtocolPackage>
         {
             private int headerLength = 8; // Initial header length
@@ -122,7 +129,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e);
+                     _logger.LogInformation(DateTime.Now.ToString()+":"+e);
                     Reset();
                 }
 
@@ -140,7 +147,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                             package.StartCode = new byte[] { firstByte, secondByte };
                             //if (package.StartCode[0] != 0xA5 && package.StartCode[1] != 0x5A)
                             //{
-                            //    Console.WriteLine($"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
+                            //     _logger.LogInformation(DateTime.Now.ToString()+":"+$"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
                             //    reader.Advance(1);
                             //    return null;
                             //}
@@ -195,12 +202,12 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                         var originalcheckSum = BitConverter.ToUInt16(package.CheckCode, 0);
                         if (originalcheckSum != checkSum && (endCodePosition-startCodePosition == 10+dataLength))
                         {
-                            Console.WriteLine("Check failed, the message is invalid!!");
+                             _logger.LogInformation(DateTime.Now.ToString()+":"+"Check failed, the message is invalid!!");
                             string hex = BitConverter.ToString(result).Replace("-", "");
-                            Console.WriteLine($"{DateTime.Now}");
-                            Console.WriteLine(hex);
-                            Console.WriteLine($"checkSum:{originalcheckSum.ToString("X4")}");
-                            Console.WriteLine($"cal checkSum:{checkSum.ToString("X4")}");
+                             _logger.LogInformation(DateTime.Now.ToString()+":"+$"{DateTime.Now}");
+                             _logger.LogInformation(DateTime.Now.ToString()+":"+hex);
+                             _logger.LogInformation(DateTime.Now.ToString()+":"+$"checkSum:{originalcheckSum.ToString("X4")}");
+                             _logger.LogInformation(DateTime.Now.ToString()+":"+$"cal checkSum:{checkSum.ToString("X4")}");
                             return null;
                         }
                         else if (originalcheckSum != checkSum && (endCodePosition - startCodePosition > 10 + dataLength))
@@ -212,8 +219,8 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine($"{DateTime.Now}");
-                        Console.WriteLine($"{e}");
+                         _logger.LogInformation(DateTime.Now.ToString()+":"+$"{DateTime.Now}");
+                         _logger.LogInformation(DateTime.Now.ToString()+":"+$"{e}");
                         return null;
                     }
 
@@ -293,7 +300,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
         //                package.StartCode = new byte[] { firstByte, secondByte };
         //                if (package.StartCode[0] != 0xA5 && package.StartCode[1] != 0x5A)
         //                {
-        //                    Console.WriteLine($"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
+        //                     _logger.LogInformation(DateTime.Now.ToString()+":"+$"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
         //                    reader.Advance(1);
         //                    return null;
         //                }
@@ -337,7 +344,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
         //        }
         //        catch (Exception e)
         //        {
-        //            Console.WriteLine($"{e}");
+        //             _logger.LogInformation(DateTime.Now.ToString()+":"+$"{e}");
         //        }
 
 
@@ -349,7 +356,27 @@ namespace DataAcquisitionServerAppWithWebPage.Service
 
         public IHost host;
 
+
+
         public bool IsRunning { get; private set; }
+
+        public async void StopServerAsync()
+        {
+            try
+            {
+                if (host != null)
+                {
+                    await host.StopAsync();
+                }
+            }
+            catch (Exception)
+            {
+
+
+            }
+
+        }
+
 
         public async void StartServerAsync()
         {
@@ -373,7 +400,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                     //{
                     //    str.AppendFormat("{0:x2}", b);
                     //}
-                    //Console.WriteLine(str);
+                    // _logger.LogInformation(DateTime.Now.ToString()+":"+str);
 
                     var checkSum = CheckAlgorithm.CalculateCrc16(result);
                     UInt16 originalcheckSum = 0;
@@ -388,7 +415,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                   
                     if (originalcheckSum != checkSum)
                     {
-                        Console.WriteLine("校验失败，报文无效!");
+                         _logger.LogError(DateTime.Now.ToString()+":"+"校验失败，报文无效!");
                     }
                     else
                     {
@@ -614,7 +641,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e); 
+                     _logger.LogError(DateTime.Now.ToString()+":"+e); 
                     //throw;
                 }
 
@@ -634,7 +661,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
             .UseSessionHandler(async (s) =>
             {
                 // 这个方法在新的会话连接时被调用
-                Console.WriteLine("A new session connected: " + s.SessionID);
+                 _logger.LogInformation(DateTime.Now.ToString()+":"+ "A new session connected: " + s.SessionID);
 
                 // 获取设备的 IP 端点
                 var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
@@ -687,7 +714,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                     sessions.Remove(s);
                 }
                 // 这个方法在会话关闭时被调用
-                Console.WriteLine("A session closed: " + s.SessionID);
+                 _logger.LogInformation(DateTime.Now.ToString()+":"+"A session closed: " + s.SessionID);
 
                 // 获取设备的 IP 端点
                 var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
@@ -754,7 +781,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
             catch (NullReferenceException ex)
             {
                 // Log the exception
-                Console.WriteLine("Error in GetAllSessions: " + ex.Message);
+                 _logger.LogError(DateTime.Now.ToString()+":"+"Error in GetAllSessions: " + ex.Message);
                 return Enumerable.Empty<IAppSession>();
             }
         }

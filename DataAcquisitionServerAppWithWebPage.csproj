@@ -21,6 +21,7 @@
     <PackageReference Include="MQTTnet" Version="4.2.0.706" />
     <PackageReference Include="MySql.Data" Version="8.0.33" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="SuperSimpleTcp" Version="3.0.11" />
     <PackageReference Include="SuperSocket" Version="2.0.0-beta.16" />
     <PackageReference Include="SuperSocket.SerialIO" Version="2.0.0-beta.10" />
     <PackageReference Include="SuperSocket.WebSocket" Version="2.0.0-beta.16" />
