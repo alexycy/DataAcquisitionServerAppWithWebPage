@@ -1,35 +1,26 @@
-﻿using DataAcquisitionServerApp;
-using DataAcquisitionServerAppWithWebPage.Data;
-using DataAcquisitionServerAppWithWebPage.Protocol;
+﻿using DataAcquisitionServerAppWithWebPage.Data;
 using DataAcquisitionServerAppWithWebPage.Utilities;
-using Org.BouncyCastle.Ocsp;
-using Org.BouncyCastle.Utilities;
 using SuperSocket;
 using SuperSocket.ProtoBase;
-using SuperSocket.Server;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Data;
 using System.Net;
-using System.Text;
-using System.Xml;
-using DataAcquisitionServerAppWithWebPage.Data;
 using static DataAcquisitionServerAppWithWebPage.Protocol.KDonlinemonitoring;
-using Microsoft.EntityFrameworkCore.Query.Internal;
 
 namespace DataAcquisitionServerAppWithWebPage.Service
 {
-    
+
     public class TcpServer
     {
-        private static ILogger _logger;
+        //private static ILogger _logger;
         public List<IAppSession> sessions = new List<IAppSession>();
 
 
 
-        public TcpServer(ILogger<TcpServer> logger)
+        public TcpServer(/*ILogger<TcpServer> logger*/)
         {
-            _logger = logger;
+            //_logger = logger;
         }
         public class MyCustomProtocolFilter : PipelineFilterBase<ProtocolPackage>
         {
@@ -70,10 +61,10 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                 {
 
                                     continue;
-                                } 
+                                }
 
                                 // Read the data length
-                                if (!reader.TryReadBigEndian(out  dataLength))
+                                if (!reader.TryReadBigEndian(out dataLength))
                                 {
                                     continue; // If out of bounds, continue to the next loop
                                 }
@@ -81,7 +72,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                 // Skip the data field
                                 try
                                 {
-                                    reader.Advance(dataLength+2-1);
+                                    reader.Advance(dataLength + 2 - 1);
                                 }
                                 catch (Exception)
                                 {
@@ -129,14 +120,14 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                 }
                 catch (Exception e)
                 {
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+e);
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+e);
                     Reset();
                 }
 
-                
+
 
                 // Now you can parse the package with the updated header length
-                if (startCodeFound&& endCodeFound)
+                if (startCodeFound && endCodeFound)
                 {
                     var package = new ProtocolPackage();
                     try
@@ -147,7 +138,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                             package.StartCode = new byte[] { firstByte, secondByte };
                             //if (package.StartCode[0] != 0xA5 && package.StartCode[1] != 0x5A)
                             //{
-                            //     _logger.LogInformation(DateTime.Now.ToString()+":"+$"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
+                            //     //_logger.LogInformation(DateTime.Now.ToString()+":"+$"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
                             //    reader.Advance(1);
                             //    return null;
                             //}
@@ -163,7 +154,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                             package.ReservedField = new byte[] { firstByte, secondByte };
                         }
                         // read data length
-                        reader.TryReadBigEndian(out  dataLength);
+                        reader.TryReadBigEndian(out dataLength);
                         package.DataLength = dataLength;
 
                         // read data
@@ -200,27 +191,27 @@ namespace DataAcquisitionServerAppWithWebPage.Service
 
                         var checkSum = CheckAlgorithm.CalculateCrc16(result);
                         var originalcheckSum = BitConverter.ToUInt16(package.CheckCode, 0);
-                        if (originalcheckSum != checkSum && (endCodePosition-startCodePosition == 10+dataLength))
+                        if (originalcheckSum != checkSum && (endCodePosition - startCodePosition == 10 + dataLength))
                         {
-                             _logger.LogInformation(DateTime.Now.ToString()+":"+"Check failed, the message is invalid!!");
+                            //_logger.LogInformation(DateTime.Now.ToString()+":"+"Check failed, the message is invalid!!");
                             string hex = BitConverter.ToString(result).Replace("-", "");
-                             _logger.LogInformation(DateTime.Now.ToString()+":"+$"{DateTime.Now}");
-                             _logger.LogInformation(DateTime.Now.ToString()+":"+hex);
-                             _logger.LogInformation(DateTime.Now.ToString()+":"+$"checkSum:{originalcheckSum.ToString("X4")}");
-                             _logger.LogInformation(DateTime.Now.ToString()+":"+$"cal checkSum:{checkSum.ToString("X4")}");
+                            //_logger.LogInformation(DateTime.Now.ToString()+":"+$"{DateTime.Now}");
+                            //_logger.LogInformation(DateTime.Now.ToString()+":"+hex);
+                            //_logger.LogInformation(DateTime.Now.ToString()+":"+$"checkSum:{originalcheckSum.ToString("X4")}");
+                            //_logger.LogInformation(DateTime.Now.ToString()+":"+$"cal checkSum:{checkSum.ToString("X4")}");
                             return null;
                         }
                         else if (originalcheckSum != checkSum && (endCodePosition - startCodePosition > 10 + dataLength))
                         {
-                            reader.Advance(endCodePosition+2);
+                            reader.Advance(endCodePosition + 2);
                             return null;
                         }
 
                     }
                     catch (Exception e)
                     {
-                         _logger.LogInformation(DateTime.Now.ToString()+":"+$"{DateTime.Now}");
-                         _logger.LogInformation(DateTime.Now.ToString()+":"+$"{e}");
+                        //_logger.LogInformation(DateTime.Now.ToString()+":"+$"{DateTime.Now}");
+                        //_logger.LogInformation(DateTime.Now.ToString()+":"+$"{e}");
                         return null;
                     }
 
@@ -300,7 +291,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
         //                package.StartCode = new byte[] { firstByte, secondByte };
         //                if (package.StartCode[0] != 0xA5 && package.StartCode[1] != 0x5A)
         //                {
-        //                     _logger.LogInformation(DateTime.Now.ToString()+":"+$"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
+        //                     //_logger.LogInformation(DateTime.Now.ToString()+":"+$"Receive the exception of the initial code, {package.StartCode}, and discard the current 1 byte messages。");
         //                    reader.Advance(1);
         //                    return null;
         //                }
@@ -344,7 +335,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
         //        }
         //        catch (Exception e)
         //        {
-        //             _logger.LogInformation(DateTime.Now.ToString()+":"+$"{e}");
+        //             //_logger.LogInformation(DateTime.Now.ToString()+":"+$"{e}");
         //        }
 
 
@@ -392,7 +383,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                     list.AddRange(p.ReservedField);
                     list.AddRange(BitConverter.GetBytes(BinaryPrimitives.ReverseEndianness(p.DataLength)));
                     list.AddRange(p.Data);
-                    
+
                     byte[] result = list.ToArray();
 
                     //StringBuilder str = new StringBuilder(result.Length * 2);
@@ -400,7 +391,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                     //{
                     //    str.AppendFormat("{0:x2}", b);
                     //}
-                    // _logger.LogInformation(DateTime.Now.ToString()+":"+str);
+                    // //_logger.LogInformation(DateTime.Now.ToString()+":"+str);
 
                     var checkSum = CheckAlgorithm.CalculateCrc16(result);
                     UInt16 originalcheckSum = 0;
@@ -412,10 +403,10 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                     {
 
                     }
-                  
+
                     if (originalcheckSum != checkSum)
                     {
-                         _logger.LogError(DateTime.Now.ToString()+":"+"校验失败，报文无效!");
+                        //_logger.LogError(DateTime.Now.ToString()+":"+"校验失败，报文无效!");
                     }
                     else
                     {
@@ -452,7 +443,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                 parser = new UnDeal();
                                 //throw new Exception("Unknown control word: " + rev.ControlWord);
                                 break;
-                                
+
                         }
                         ParsedData quadraticRev = parser.ParseData(rev.CustomData);
 
@@ -469,10 +460,10 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                     {
                                         lock (DataGlobal.dbLock)
                                         {
-                                        //使用数据库帮助类来执行数据库操作
-                                        var dbHelper = new DatabaseHelper();
-                                        string query;
-                                        //插入数据记录   
+                                            //使用数据库帮助类来执行数据库操作
+                                            var dbHelper = new DatabaseHelper();
+                                            string query;
+                                            //插入数据记录   
 
                                             query = $"INSERT INTO `{DataGlobal.nowRecordTableName}`(imei, current,time,createTime,indexNumber) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}','{quadraticRev.DCBiasCurrentMeasurementResult}','{quadraticRev.DataCollectionTime.ToString("yyyy-MM-dd HH:mm:ss.fff")}','{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}','{quadraticRev.IndexNum}')";
                                             var resault = dbHelper.ExecuteNonQuery(query);
@@ -518,7 +509,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
 
                                     });
                                 }
-                               
+
                                 break;
                             case 0x0004:
                                 if (SystemState.canConnectSQL)
@@ -568,14 +559,14 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                                 // If both match, do not perform any database operations
                                             }
                                         }
-                                    
+
 
 
                                     });
 
-                              
+
                                 }
-                             
+
                                 break;
                             case 0x1001:
                                 break;
@@ -622,7 +613,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
 
                                     });
                                 }
-                               
+
                                 break;
                             case 0x2001:
                                 break;
@@ -633,7 +624,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
 
                         }
 
-                     
+
 
 
 
@@ -641,11 +632,11 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                 }
                 catch (Exception e)
                 {
-                     _logger.LogError(DateTime.Now.ToString()+":"+e); 
+                    //_logger.LogError(DateTime.Now.ToString()+":"+e); 
                     //throw;
                 }
 
-               
+
             })
             .ConfigureSuperSocket(options =>
             {
@@ -655,13 +646,13 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                     Ip = "Any",
                     Port = Convert.ToInt16(ConfigurationHelper.GetPortValue("webServiceConfig.xml", "tcpServerPort", "add", "port"))
                 }
-                ); 
+                );
 
             })
             .UseSessionHandler(async (s) =>
             {
                 // 这个方法在新的会话连接时被调用
-                 _logger.LogInformation(DateTime.Now.ToString()+":"+ "A new session connected: " + s.SessionID);
+                //_logger.LogInformation(DateTime.Now.ToString()+":"+ "A new session connected: " + s.SessionID);
 
                 // 获取设备的 IP 端点
                 var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
@@ -703,7 +694,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                             dbHelper.ExecuteNonQuery(query);
                         }
                     }
-                   
+
 
                 }
             }, async (s, e) =>
@@ -714,7 +705,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                     sessions.Remove(s);
                 }
                 // 这个方法在会话关闭时被调用
-                 _logger.LogInformation(DateTime.Now.ToString()+":"+"A session closed: " + s.SessionID);
+                //_logger.LogInformation(DateTime.Now.ToString()+":"+"A session closed: " + s.SessionID);
 
                 // 获取设备的 IP 端点
                 var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
@@ -781,7 +772,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
             catch (NullReferenceException ex)
             {
                 // Log the exception
-                 _logger.LogError(DateTime.Now.ToString()+":"+"Error in GetAllSessions: " + ex.Message);
+                //_logger.LogError(DateTime.Now.ToString()+":"+"Error in GetAllSessions: " + ex.Message);
                 return Enumerable.Empty<IAppSession>();
             }
         }

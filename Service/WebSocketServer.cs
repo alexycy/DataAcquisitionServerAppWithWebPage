@@ -1,13 +1,7 @@
-﻿using DataAcquisitionServerApp;
-using DataAcquisitionServerAppWithWebPage.Utilities;
+﻿using DataAcquisitionServerAppWithWebPage.Utilities;
 using Newtonsoft.Json;
 using SuperSocket;
-using SuperSocket.Server;
-using SuperSocket.WebSocket;
 using SuperSocket.WebSocket.Server;
-using System.Text;
-using System.Text.Json;
-using static DataAcquisitionServerAppWithWebPage.Service.WebSocketServer;
 
 namespace DataAcquisitionServerAppWithWebPage.Service
 {
@@ -16,13 +10,15 @@ namespace DataAcquisitionServerAppWithWebPage.Service
     public class WebSocketServer
     {
         private readonly TcpServer _tcpServer;
+        //private static ILogger _logger;
         public class JsonPackage
         {
             public string Address { get; set; }
             public string Message { get; set; }
         }
-        public WebSocketServer(TcpServer tcpServer)
+        public WebSocketServer(TcpServer tcpServer/*,ILogger<WebSocketServer> logger*/)
         {
+            ////_logger. = logger;   
             _tcpServer = tcpServer;
         }
         public async void StartServerAsync()
@@ -39,34 +35,31 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                 })
                 .UseWebSocketMessageHandler(async (session, message) =>
                 {
-                    Console.WriteLine($"{message.Message}");
+                    //_logger..LogInformation(DateTime.Now.ToString()+$"{message.Message}");
 
                     // 在这里处理接收到的消息
                     var receivedText = message.Message;
 
-                        JsonPackage jsonPackage = JsonConvert.DeserializeObject<JsonPackage>(receivedText);
+                    JsonPackage jsonPackage = JsonConvert.DeserializeObject<JsonPackage>(receivedText);
 
-// 
-                        Console.WriteLine($"{jsonPackage.Message}");
-                        Console.WriteLine($"{jsonPackage.Address}");
+                    // 
+                    //_logger..LogInformation(DateTime.Now.ToString()+$"{jsonPackage.Message}");
+                    //_logger..LogInformation(DateTime.Now.ToString()+$"{jsonPackage.Address}");
 
-                        // 获取 TcpServer 的所有会话
-                        var targetSession = _tcpServer.sessions.FirstOrDefault(s => s.RemoteEndPoint.ToString() == jsonPackage.Address);
+                    // 获取 TcpServer 的所有会话
+                    var targetSession = _tcpServer.sessions.FirstOrDefault(s => s.RemoteEndPoint.ToString() == jsonPackage.Address);
 
-                        if (targetSession != null)
-                        {
-                            var messageBytes = ConvertMethod.StringToByteArray(jsonPackage.Message);
-                            await targetSession.SendAsync(messageBytes);
-                            Console.WriteLine(messageBytes);
-                        }
-                        else
-                        {
-                            Console.WriteLine("找不到目标地址");
-                            return;
-                        }
-
-                    
-
+                    if (targetSession != null)
+                    {
+                        var messageBytes = ConvertMethod.StringToByteArray(jsonPackage.Message);
+                        await targetSession.SendAsync(messageBytes);
+                        //_logger..LogInformation(DateTime.Now.ToString()+messageBytes);
+                    }
+                    else
+                    {
+                        //_logger..LogInformation(DateTime.Now.ToString()+"找不到目标地址");
+                        return;
+                    }
 
                 })
                 .UsePerMessageCompression()

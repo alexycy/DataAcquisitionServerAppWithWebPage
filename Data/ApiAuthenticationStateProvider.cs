@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components.Authorization;
 using System.Security.Claims;
-using System.Threading.Tasks;
 namespace DataAcquisitionServerAppWithWebPage.Data
 {
 
@@ -8,7 +7,7 @@ namespace DataAcquisitionServerAppWithWebPage.Data
     public class ApiAuthenticationStateProvider : AuthenticationStateProvider
     {
         public event Action AuthenticationStateChanged;
-        public  ClaimsPrincipal _user;
+        public ClaimsPrincipal _user;
         public bool ifRefresh = false;
         public bool iflogout = false;
 
@@ -36,7 +35,7 @@ namespace DataAcquisitionServerAppWithWebPage.Data
             _user = new ClaimsPrincipal(new ClaimsIdentity());
             var state = new AuthenticationState(_user);
             NotifyAuthenticationStateChanged(Task.FromResult(state));
-           
+
 
         }
 

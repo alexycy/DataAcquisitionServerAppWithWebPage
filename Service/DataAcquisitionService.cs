@@ -1,25 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using DataAcquisitionServerAppWithWebPage.Data;
+using DataAcquisitionServerAppWithWebPage.Service;
+using Newtonsoft.Json;
+using System.Data;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
-using MQTTnet;
-using MQTTnet.Server;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using DataAcquisitionServerAppWithWebPage.Pages;
-using Newtonsoft.Json;
-using SuperSocket;
-using DataAcquisitionServerAppWithWebPage.Service;
-using System.Data;
-using DataAcquisitionServerAppWithWebPage.Data;
-using MySql.Data.MySqlClient;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using System.Xml;
-using Google.Protobuf.WellKnownTypes;
-using System.Timers;
 
 namespace DataAcquisitionServerApp
 {
@@ -27,7 +15,7 @@ namespace DataAcquisitionServerApp
     {
         public TcpListener Listener { get; set; }
     }
-    public  class SerialPortSetting
+    public class SerialPortSetting
     {
         public string PortName { get; set; }
         public int BaudRate { get; set; }
@@ -46,11 +34,11 @@ namespace DataAcquisitionServerApp
 
     public class compositeClient
     {
-      public  TcpClient _tcpClient;
-      public  DateTime  _dateTime;
+        public TcpClient _tcpClient;
+        public DateTime _dateTime;
     }
-    
-    public class  deviceList
+
+    public class deviceList
     {
         public bool ifStartSerialPort1 { get; set; }
         public bool ifStartSerialPort2 { get; set; }
@@ -80,7 +68,7 @@ namespace DataAcquisitionServerApp
     {
         public event Action OnDeviceStateChanged;
         private readonly MqttService _mqttService;
-        public  TcpServer? _tcpServer;
+        public TcpServer? _tcpServer;
         public deviceState deviceState = new deviceState();
         public deviceList deviceList = new deviceList();
         SerialPort _serialPort = new SerialPort();
@@ -91,16 +79,16 @@ namespace DataAcquisitionServerApp
         public List<compositeClient> _connectedTcpClients = new List<compositeClient>();
         TcpListenerWrapper? _listenerWrapper1 = null;
         TcpListenerWrapper? _listenerWrapper2 = null;
-        SerialPortSetting serialPortSetting = new SerialPortSetting();  
+        SerialPortSetting serialPortSetting = new SerialPortSetting();
         TCPServerSetting tcpServerSetting = new TCPServerSetting();
-        public Queue<LogEntry> logQueue = new Queue<LogEntry>();  
+        public Queue<LogEntry> logQueue = new Queue<LogEntry>();
         int _clientCount = 0;
         private WebSocketServer? _webSocketServer;
         private SerialPortIOServer? _serialIOPortServer;
         private static System.Timers.Timer timer;
-        private DatabaseManager _databaseManager; 
-        private readonly ILogger _logger;
-        public  DataAcquisitionService(IServiceProvider serviceProvider,ILogger<DataAcquisitionService> logger)
+        private DatabaseManager _databaseManager;
+        //private readonly ILogger _logger;
+        public DataAcquisitionService(IServiceProvider serviceProvider/*,ILogger<DataAcquisitionService> logger*/)
         {
             //在 Blazor 中，依赖注入通常在组件中使用，但如果你想在一个普通的类中使用，需要传递 IServiceProvider 来解析服务
             _mqttService = serviceProvider.GetService(typeof(MqttService)) as MqttService;
@@ -109,7 +97,7 @@ namespace DataAcquisitionServerApp
             _webSocketServer = serviceProvider.GetService(typeof(WebSocketServer)) as WebSocketServer;
             _serialIOPortServer = serviceProvider.GetService(typeof(SerialPortIOServer)) as SerialPortIOServer;
 
-            _logger = logger;
+            //_logger = logger;
 
             DataGlobal.nowRecordTableName = GetNowRecordTableName();
 
@@ -135,7 +123,7 @@ namespace DataAcquisitionServerApp
 
 
 
-            if (_listenerWrapper1 == null )
+            if (_listenerWrapper1 == null)
             {
 
                 LogMessage("Starting TCP service...", LogLevel.Information);
@@ -146,7 +134,7 @@ namespace DataAcquisitionServerApp
                 ChangeDeviceState(deviceState, "ifRunningTCPServer");
             }
 
-            if (_listenerWrapper2 ==null)
+            if (_listenerWrapper2 == null)
             {
                 LogMessage("Starting WebSocket service...", LogLevel.Information);
                 _connectedClients.Clear();
@@ -171,7 +159,7 @@ namespace DataAcquisitionServerApp
                 catch (Exception ex)
                 {
                     // 处理异常
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+ex);
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+ex);
                 }
             });
 
@@ -184,7 +172,7 @@ namespace DataAcquisitionServerApp
                 catch (Exception ex)
                 {
                     // 处理异常
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+ex);
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+ex);
                 }
             });
 
@@ -218,7 +206,7 @@ namespace DataAcquisitionServerApp
 
                         SetTableName(name);
 
-                         _logger.LogInformation(DateTime.Now.ToString() + ":" + $"Have created a new Table :{newTableName}");
+                        //_logger.LogInformation(DateTime.Now.ToString() + ":" + $"Have created a new Table :{newTableName}");
                         success = true;
                     }
 
@@ -227,14 +215,14 @@ namespace DataAcquisitionServerApp
                 catch (Exception ex)
                 {
                     retryCount++;
-                     _logger.LogInformation(DateTime.Now.ToString() + ":" + "Failed to create a database table.and retry create, Exception  " + ex.Message);
+                    //_logger.LogInformation(DateTime.Now.ToString() + ":" + "Failed to create a database table.and retry create, Exception  " + ex.Message);
                     System.Threading.Thread.Sleep(5000); // wait for 5 seconds before retrying
                 }
             }
 
             if (!success)
             {
-                 _logger.LogInformation(DateTime.Now.ToString() + ":" + "Failed to create a database table. After 3 retry times" );
+                //_logger.LogInformation(DateTime.Now.ToString() + ":" + "Failed to create a database table. After 3 retry times" );
             }
         }
 
@@ -269,18 +257,18 @@ namespace DataAcquisitionServerApp
                 if (!_tcpServer.IsRunning)
                 {
                     // TCP 服务器已停止，抛出错误或进行其他处理
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+"The TCP server is shut down abnormally ！");
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+"The TCP server is shut down abnormally ！");
                 }
 
                 DatabaseHelper db = new DatabaseHelper();
-                
-                 
+
+
                 if (SystemState.canConnectSQL != db.ChecSQLConnection())
                 {
                     SystemState.canConnectSQL = db.ChecSQLConnection();
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+$"The State of Connecting to MySQL:{SystemState.canConnectSQL}");
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+$"The State of Connecting to MySQL:{SystemState.canConnectSQL}");
                 }
-            
+
                 // 等待一段时间再进行下一次检查
                 await Task.Delay(TimeSpan.FromSeconds(5));
             }
@@ -288,7 +276,7 @@ namespace DataAcquisitionServerApp
 
         public async Task RunAsync()
         {
-            LogMessage("按 S 键启动服务，P 停止服务，Q 退出。",LogLevel.Information);
+            LogMessage("按 S 键启动服务，P 停止服务，Q 退出。", LogLevel.Information);
 
             while (true)
             {
@@ -318,38 +306,38 @@ namespace DataAcquisitionServerApp
                 LogMessage("MQTT 服务已关闭", LogLevel.Information);
                 ChangeDeviceState(deviceState, "ifRunningMqttServer");
             }
-            if (_serialPort != null&& deviceList.ifStartSerialPort1)
+            if (_serialPort != null && deviceList.ifStartSerialPort1)
             {
                 _serialPort.Close();
                 _serialPort.Dispose();
-                LogMessage("UART 服务已关闭",LogLevel.Information);
+                LogMessage("UART 服务已关闭", LogLevel.Information);
                 ChangeDeviceState(deviceState, "ifRunningSerialPort1");
             }
 
-            if (_httpListener != null&& deviceList.ifStartWebSocketServer)
+            if (_httpListener != null && deviceList.ifStartWebSocketServer)
             {
                 _connectedClients.Clear();
                 _cancellationTokenSource2.Cancel();
                 _httpListener.Stop();
                 _httpListener.Close();
-                LogMessage("WebSocket 服务已停止",LogLevel.Information);
+                LogMessage("WebSocket 服务已停止", LogLevel.Information);
                 ChangeDeviceState(deviceState, "ifRunningWebSocketServer");
-                 _logger.LogInformation(DateTime.Now.ToString()+":"+$"当前客户端连接数量: {_connectedClients.Count}");
+                //_logger.LogInformation(DateTime.Now.ToString()+":"+$"当前客户端连接数量: {_connectedClients.Count}");
             }
-            if (_listenerWrapper1 != null&& deviceList.ifStartTCPServer)
+            if (_listenerWrapper1 != null && deviceList.ifStartTCPServer)
             {
-                _connectedTcpClients.Clear(); 
+                _connectedTcpClients.Clear();
                 _cancellationTokenSource1.Cancel();
                 _listenerWrapper1.Listener.Stop();
                 _listenerWrapper1 = null;
-                LogMessage("TCP 服务已停止",LogLevel.Information);
+                LogMessage("TCP 服务已停止", LogLevel.Information);
                 ChangeDeviceState(deviceState, "ifRunningTCPServer");
             }
             if (_listenerWrapper2 != null)
             {
                 _listenerWrapper2.Listener.Stop();
                 _listenerWrapper2 = null;
-                LogMessage("TELNET 服务已停止",LogLevel.Information);
+                LogMessage("TELNET 服务已停止", LogLevel.Information);
             }
 
         }
@@ -359,13 +347,13 @@ namespace DataAcquisitionServerApp
             if (!deviceState.ifRunningMqttServer && deviceList.ifStartMqttServer)
             {
                 await _mqttService.StartMQTTService();
-                LogMessage("MQTT服务 已启动", LogLevel.Information);    LogMessage($"MQTT服务启动状态: {_mqttService.mqttServer.IsStarted},MQTT服务器参数:{_mqttService.mqttServer.ServerSessionItems}", LogLevel.Information);
-            
+                LogMessage("MQTT服务 已启动", LogLevel.Information); LogMessage($"MQTT服务启动状态: {_mqttService.mqttServer.IsStarted},MQTT服务器参数:{_mqttService.mqttServer.ServerSessionItems}", LogLevel.Information);
+
                 ChangeDeviceState(deviceState, "ifRunningMqttServer");
             }
             if (!_serialPort.IsOpen && deviceList.ifStartSerialPort1)
             {
-                LogMessage("Starting UART service...",LogLevel.Information);
+                LogMessage("Starting UART service...", LogLevel.Information);
                 try
                 {
                     _serialPort = new SerialPort(serialPortSetting.PortName.ToString(), serialPortSetting.BaudRate, Parity.None, 8, StopBits.One);
@@ -375,20 +363,20 @@ namespace DataAcquisitionServerApp
                 catch (Exception e)
                 {
 
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+$"{e}");
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+$"{e}");
                 }
 
-                LogMessage("UART服务 已启动",LogLevel.Information);
+                LogMessage("UART服务 已启动", LogLevel.Information);
                 ChangeDeviceState(deviceState, "ifRunningSerialPort1");
             }
             else
             {
-                LogMessage("Closing UART service...",LogLevel.Information);
+                LogMessage("Closing UART service...", LogLevel.Information);
                 _serialPort.Close();
                 _serialPort.Dispose();
-                LogMessage("UART 服务已关闭",LogLevel.Information);
+                LogMessage("UART 服务已关闭", LogLevel.Information);
                 ChangeDeviceState(deviceState, "ifRunningSerialPort1");
-                LogMessage("Starting UART service...",LogLevel.Information);
+                LogMessage("Starting UART service...", LogLevel.Information);
                 try
                 {
                     _serialPort = new SerialPort(serialPortSetting.PortName.ToString(), serialPortSetting.BaudRate, Parity.None, 8, StopBits.One);
@@ -398,45 +386,45 @@ namespace DataAcquisitionServerApp
                 catch (Exception e)
                 {
 
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+$"{e}");
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+$"{e}");
                 }
 
-                LogMessage("UART服务 已启动",LogLevel.Information);
+                LogMessage("UART服务 已启动", LogLevel.Information);
                 ChangeDeviceState(deviceState, "ifRunningSerialPort1");
             }
 
             if (!_httpListener.IsListening && deviceList.ifStartWebSocketServer)
             {
-                LogMessage("Starting Webscoket service...",LogLevel.Information);
+                LogMessage("Starting Webscoket service...", LogLevel.Information);
                 _cancellationTokenSource2 = new CancellationTokenSource();
                 //_httpListener = new HttpListener();
                 //_httpListener.Prefixes.Add("http://192.168.1.103:5005/");
                 //_httpListener.Start();
-                // _logger.LogInformation(DateTime.Now.ToString()+":"+"WebSocket 服务器已启动");
+                // //_logger.LogInformation(DateTime.Now.ToString()+":"+"WebSocket 服务器已启动");
                 Task.Run(() => ListenWebSocket(_cancellationTokenSource2.Token));
 
 
-                LogMessage("WebSocket 服务器已启动",LogLevel.Information);
+                LogMessage("WebSocket 服务器已启动", LogLevel.Information);
                 ChangeDeviceState(deviceState, "ifRunningWebSocketServer");
             }
 
-            if (_listenerWrapper1 == null&& deviceList.ifStartTCPServer)
+            if (_listenerWrapper1 == null && deviceList.ifStartTCPServer)
             {
 
-                LogMessage("Starting TCP service...",LogLevel.Information);
+                LogMessage("Starting TCP service...", LogLevel.Information);
                 _connectedTcpClients.Clear();
                 //await Task.Factory.StartNew(() => ListenTcp(tcpServerSetting.TCPAddress,tcpServerSetting.TCPPort));
                 //var tcpServer  =  new TcpServer();
                 //tcpServer.StartServerAsync();
-                LogMessage("TCP服务 已启动",LogLevel.Information);
+                LogMessage("TCP服务 已启动", LogLevel.Information);
                 ChangeDeviceState(deviceState, "ifRunningTCPServer");
             }
             if (_listenerWrapper2 == null)
             {
-                LogMessage("Starting Telnet service...",LogLevel.Information);
+                LogMessage("Starting Telnet service...", LogLevel.Information);
                 _listenerWrapper2 = new TcpListenerWrapper();
-                 TelnetService.StartTelnetServerAsync(_listenerWrapper2,"127.0.0.1", 23);
-                LogMessage("Telnet服务 已启动",LogLevel.Information);
+                TelnetService.StartTelnetServerAsync(_listenerWrapper2, "127.0.0.1", 23);
+                LogMessage("Telnet服务 已启动", LogLevel.Information);
 
             }
 
@@ -452,7 +440,7 @@ namespace DataAcquisitionServerApp
                 while (!_cancellationTokenSource1.IsCancellationRequested && _listenerWrapper1 != null)
                 {
                     TcpClient client = await _listenerWrapper1.Listener.AcceptTcpClientAsync();
-                    LogMessage($"客户端 {_clientCount++} 已连接",LogLevel.Information);
+                    LogMessage($"客户端 {_clientCount++} 已连接", LogLevel.Information);
                     compositeClient cc = new compositeClient();
                     cc._tcpClient = client;
                     cc._dateTime = DateTime.Now;
@@ -465,7 +453,7 @@ namespace DataAcquisitionServerApp
             catch (Exception e)
             {
 
-                LogMessage($"{e}",LogLevel.Error);
+                LogMessage($"{e}", LogLevel.Error);
                 return;
             }
 
@@ -484,7 +472,7 @@ namespace DataAcquisitionServerApp
                     if (byteCount > 0)
                     {
                         var hex = BitConverter.ToString(buffer, 0, byteCount).Replace("-", "");
-                         _logger.LogInformation(DateTime.Now.ToString()+":"+$"收到来自客户端的消息：{hex}");
+                        //_logger.LogInformation(DateTime.Now.ToString()+":"+$"收到来自客户端的消息：{hex}");
 
                         var jsonPacket = new
                         {
@@ -499,11 +487,11 @@ namespace DataAcquisitionServerApp
                             try
                             {
                                 await item.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(jsonString)), WebSocketMessageType.Text, true, CancellationToken.None);
-                                 _logger.LogInformation(DateTime.Now.ToString()+":"+$"发送消息到客户端: {jsonString}");
+                                //_logger.LogInformation(DateTime.Now.ToString()+":"+$"发送消息到客户端: {jsonString}");
                             }
                             catch (Exception e)
                             {
-                                 _logger.LogInformation(DateTime.Now.ToString()+":"+$"发送消息到客户端时出错：{e.Message}");
+                                //_logger.LogInformation(DateTime.Now.ToString()+":"+$"发送消息到客户端时出错：{e.Message}");
                                 _connectedClients.Remove(item);
                             }
                         }
@@ -516,7 +504,7 @@ namespace DataAcquisitionServerApp
             }
             catch (Exception e)
             {
-                 _logger.LogInformation(DateTime.Now.ToString()+":"+$"处理客户端 {_clientCount} 时出错：{e.Message}");
+                //_logger.LogInformation(DateTime.Now.ToString()+":"+$"处理客户端 {_clientCount} 时出错：{e.Message}");
             }
             finally
             {
@@ -528,7 +516,7 @@ namespace DataAcquisitionServerApp
                     }
                 }
                 client.Close();
-                 _logger.LogInformation(DateTime.Now.ToString()+":"+$"客户端 {_clientCount--} 已断开");
+                //_logger.LogInformation(DateTime.Now.ToString()+":"+$"客户端 {_clientCount--} 已断开");
             }
         }
 
@@ -538,7 +526,7 @@ namespace DataAcquisitionServerApp
 
         private async Task ListenWebSocket(CancellationToken cancellationToken)
         {
-           
+
             _httpListener = new HttpListener();
             //var address = $"{ipAddress}:{port}/";
             //httpListener.Prefixes.Add(address);
@@ -554,12 +542,12 @@ namespace DataAcquisitionServerApp
                     try
                     {
                         var webSocketContext = await context.AcceptWebSocketAsync(null);
-                        LogMessage("WebSocket 连接已建立",LogLevel.Information);
+                        LogMessage("WebSocket 连接已建立", LogLevel.Information);
                         await WebSocketConnectionHandler(webSocketContext.WebSocket);
                     }
                     catch (Exception e)
                     {
-                         _logger.LogInformation(DateTime.Now.ToString()+":"+"WebSocket 连接错误: " + e.Message);
+                        //_logger.LogInformation(DateTime.Now.ToString()+":"+"WebSocket 连接错误: " + e.Message);
                     }
                 }
                 else
@@ -575,7 +563,7 @@ namespace DataAcquisitionServerApp
         {
             var buffer = new byte[1024];
             _connectedClients.Add(webSocket);
-             _logger.LogInformation(DateTime.Now.ToString()+":"+$"当前客户端连接数量: {_connectedClients.Count}");
+            //_logger.LogInformation(DateTime.Now.ToString()+":"+$"当前客户端连接数量: {_connectedClients.Count}");
             while (true)
             {
                 var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
@@ -588,7 +576,7 @@ namespace DataAcquisitionServerApp
                     var address = (string)jsonPacket.Address;
                     var messageHex = (string)jsonPacket.Message;
 
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+$"收到来自 WebSocket 客户端{address}的消息: {messageHex}");
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+$"收到来自 WebSocket 客户端{address}的消息: {messageHex}");
 
 
                     var messageBytes = StringToByteArray(messageHex);
@@ -599,7 +587,7 @@ namespace DataAcquisitionServerApp
                         var stream = targetClient._tcpClient.GetStream();
                         await stream.WriteAsync(messageBytes, 0, messageBytes.Length);
                     }
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+$"发送到目标客户端 客户端{address}的报文: {messageHex}");
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+$"发送到目标客户端 客户端{address}的报文: {messageHex}");
 
                     //// 处理从 WebSocket 客户端接收到的消息，例如将其发送到串口
                     //if (_serialPort != null && _serialPort.IsOpen && !string.IsNullOrEmpty(message))
@@ -626,11 +614,11 @@ namespace DataAcquisitionServerApp
                     //                var stream = item._tcpClient.GetStream();
                     //                var sendBuffer = Encoding.UTF8.GetBytes(message);
                     //                await stream.WriteAsync(sendBuffer, 0, sendBuffer.Length);
-                    //                 _logger.LogInformation(DateTime.Now.ToString()+":"+$"发送消息到 TCP 客户端: {message}");
+                    //                 //_logger.LogInformation(DateTime.Now.ToString()+":"+$"发送消息到 TCP 客户端: {message}");
                     //            }
                     //            catch (Exception e)
                     //            {
-                    //                 _logger.LogInformation(DateTime.Now.ToString()+":"+$"发送消息到 TCP 客户端出错：{e.Message}");
+                    //                 //_logger.LogInformation(DateTime.Now.ToString()+":"+$"发送消息到 TCP 客户端出错：{e.Message}");
                     //            }
                     //        }
 
@@ -662,9 +650,9 @@ namespace DataAcquisitionServerApp
                 else if (result.MessageType == WebSocketMessageType.Close)
                 {
                     await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "关闭连接", CancellationToken.None);
-                    LogMessage("WebSocket 连接已关闭",LogLevel.Information);
+                    LogMessage("WebSocket 连接已关闭", LogLevel.Information);
                     _connectedClients.Remove(webSocket);
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+$"当前客户端连接数量: {_connectedClients.Count}");
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+$"当前客户端连接数量: {_connectedClients.Count}");
                     break;
                 }
             }
@@ -674,18 +662,18 @@ namespace DataAcquisitionServerApp
         {
             SerialPort serialPort = (SerialPort)sender;
             string data = serialPort.ReadExisting();
-             _logger.LogInformation(DateTime.Now.ToString()+":"+$"从串口收到数据: {data}");
+            //_logger.LogInformation(DateTime.Now.ToString()+":"+$"从串口收到数据: {data}");
             byte[] buffer = Encoding.UTF8.GetBytes(data);
 
             foreach (var client in _connectedClients)
             {
                 client.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
-                 _logger.LogInformation(DateTime.Now.ToString()+":"+$"发送消息到客户端: {data}");
+                //_logger.LogInformation(DateTime.Now.ToString()+":"+$"发送消息到客户端: {data}");
             }
         }
 
 
-        public void UpdateSerialPortSettings(string port,int baud)
+        public void UpdateSerialPortSettings(string port, int baud)
         {
             if (_serialPort != null && _serialPort.IsOpen)
             {
@@ -693,33 +681,33 @@ namespace DataAcquisitionServerApp
             }
 
             _serialPort.PortName = serialPortSetting.PortName ?? _serialPort.PortName;
-            _serialPort.BaudRate =  _serialPort.BaudRate;
+            _serialPort.BaudRate = _serialPort.BaudRate;
 
             _serialPort.Open();
         }
 
-        public  async void UpdateTCPServerSettings(string address, int port)
+        public async void UpdateTCPServerSettings(string address, int port)
         {
             tcpServerSetting.TCPPort = port;
             tcpServerSetting.TCPAddress = address;
-            if (_listenerWrapper1!=null)
+            if (_listenerWrapper1 != null)
             {
                 _listenerWrapper1.Listener.Stop();
                 _listenerWrapper1 = null;
-                LogMessage("TCP 服务已停止",LogLevel.Information);
+                LogMessage("TCP 服务已停止", LogLevel.Information);
 
-                LogMessage("Starting TCP service...",LogLevel.Information);
+                LogMessage("Starting TCP service...", LogLevel.Information);
                 _listenerWrapper1 = new TcpListenerWrapper();
                 await Task.Factory.StartNew(() => ListenTcp(tcpServerSetting.TCPAddress, tcpServerSetting.TCPPort));
-                LogMessage("TCP服务 已启动",LogLevel.Information);
+                LogMessage("TCP服务 已启动", LogLevel.Information);
             }
         }
 
-        private LogEntry GenerateLog(string message ,LogLevel level)
+        private LogEntry GenerateLog(string message, LogLevel level)
         {
             LogEntry entry = new LogEntry();
 
-            entry.Level = level; 
+            entry.Level = level;
             entry.Message = message;
             entry.Timestamp = DateTime.Now;
 
@@ -727,9 +715,9 @@ namespace DataAcquisitionServerApp
         }
 
 
-        public void LogMessage(string message,LogLevel level)
+        public void LogMessage(string message, LogLevel level)
         {
-             _logger.LogInformation(DateTime.Now.ToString()+":"+message);
+            //_logger.LogInformation(DateTime.Now.ToString()+":"+message);
             logQueue?.Enqueue(GenerateLog(message, level));
         }
 
@@ -747,8 +735,8 @@ namespace DataAcquisitionServerApp
         //            {
         //                webSocketContext = await context.AcceptWebSocketAsync(null);
         //                _connectedClients.Add(webSocketContext.WebSocket);
-        //                 _logger.LogInformation(DateTime.Now.ToString()+":"+"WebSocket 连接已建立");
-        //                 _logger.LogInformation(DateTime.Now.ToString()+":"+$"当前客户端连接数量: {_connectedClients.Count}");
+        //                 //_logger.LogInformation(DateTime.Now.ToString()+":"+"WebSocket 连接已建立");
+        //                 //_logger.LogInformation(DateTime.Now.ToString()+":"+$"当前客户端连接数量: {_connectedClients.Count}");
         //                // Start a new task to handle this connection
         //                Task.Run(async () =>
         //                {
@@ -762,14 +750,14 @@ namespace DataAcquisitionServerApp
         //                        }
         //                        else
         //                        {
-                                 
+
 
         //                            var jsonString = Encoding.UTF8.GetString(buffer, 0, result.Count);
         //                            var jsonPacket = JsonConvert.DeserializeObject<dynamic>(jsonString);
         //                            var address = (string)jsonPacket.Address;
         //                            var messageHex = (string)jsonPacket.Message;
-        //                             _logger.LogInformation(DateTime.Now.ToString()+":"+$"收到后台下发: {messageHex}");
-        //                             _logger.LogInformation(DateTime.Now.ToString()+":"+$"目标地址: {address}");
+        //                             //_logger.LogInformation(DateTime.Now.ToString()+":"+$"收到后台下发: {messageHex}");
+        //                             //_logger.LogInformation(DateTime.Now.ToString()+":"+$"目标地址: {address}");
 
         //                            var messageBytes = StringToByteArray(messageHex);
 
@@ -785,7 +773,7 @@ namespace DataAcquisitionServerApp
         //            }
         //            catch (Exception e)
         //            {
-        //                 _logger.LogInformation(DateTime.Now.ToString()+":"+"WebSocket 连接错误: " + e.Message);
+        //                 //_logger.LogInformation(DateTime.Now.ToString()+":"+"WebSocket 连接错误: " + e.Message);
         //            }
         //        }
         //        else
@@ -821,7 +809,7 @@ namespace DataAcquisitionServerApp
                     var query = "SELECT imei, ipEndPoint FROM fct_device_code";
                     dataTable = dbHelper.ExecuteQuery(query);
 
-                  
+
 
                     var deviceList = new List<(string Imei, string IpEndPoint)>();
                     foreach (DataRow row in dataTable.Rows)
@@ -841,28 +829,28 @@ namespace DataAcquisitionServerApp
 
                             // 根据响应来判断设备是否在线
                             var onlineState = reply.Status == System.Net.NetworkInformation.IPStatus.Success ? "1" : "0";
-                            if(onlineState == "0")
+                            if (onlineState == "0")
                             {
                                 // 更新设备的在线状态
 
-                                    query = $"UPDATE fct_device_code SET onlineState = '{onlineState}' WHERE imei = '{device.Imei}'";
-                                    dbHelper.ExecuteNonQuery(query);
-                            }                            
+                                query = $"UPDATE fct_device_code SET onlineState = '{onlineState}' WHERE imei = '{device.Imei}'";
+                                dbHelper.ExecuteNonQuery(query);
+                            }
 
 
                         }
                         catch (Exception ex)
                         {
-                             _logger.LogInformation(DateTime.Now.ToString()+":"+$"Error pinging device {device.Imei}: {ex.Message}");
+                            //_logger.LogInformation(DateTime.Now.ToString()+":"+$"Error pinging device {device.Imei}: {ex.Message}");
                         }
                     }
                 }
                 catch (Exception e)
                 {
-                     _logger.LogInformation(DateTime.Now.ToString()+":"+e);
+                    //_logger.LogInformation(DateTime.Now.ToString()+":"+e);
                     throw;
                 }
-             
+
 
                 // 等待一段时间再进行下一轮的 ping
                 await Task.Delay(TimeSpan.FromMinutes(1));

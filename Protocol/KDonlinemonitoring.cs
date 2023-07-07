@@ -1,9 +1,6 @@
-﻿using SuperSocket.ProtoBase;
-using System;
-using System.Buffers;
+﻿using System.Buffers;
 using System.Buffers.Binary;
 using System.Text;
-using static DataAcquisitionServerAppWithWebPage.Protocol.KDonlinemonitoring;
 
 namespace DataAcquisitionServerAppWithWebPage.Protocol
 {
@@ -44,7 +41,7 @@ namespace DataAcquisitionServerAppWithWebPage.Protocol
 
                 package.DataVersion = data[index++];
                 package.Reserved = data[index++];
-                package.DeviceType = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt16(data, index)) ; index += 2;
+                package.DeviceType = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt16(data, index)); index += 2;
                 package.ControlWord = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt16(data, index)); index += 2;
                 package.DeviceNumber = data.Skip(index).Take(6).ToArray(); index += 6;
                 package.DataSendTime = data.Skip(index).Take(8).ToArray(); index += 8;
@@ -150,7 +147,7 @@ namespace DataAcquisitionServerAppWithWebPage.Protocol
                 {
                     samplingData.SamplingState = 0;
                 }
-                
+
                 //Console.WriteLine("Sampling DataGlobal:");
                 //Console.WriteLine("Frequency: " + samplingData.Frequency);
                 //Console.WriteLine("Battery Voltage: " + samplingData.BatteryVoltage);
@@ -195,7 +192,7 @@ namespace DataAcquisitionServerAppWithWebPage.Protocol
                 int hour = data[3];
                 int minute = data[4];
                 int second = data[5];
-                int millisecond = BinaryPrimitives.ReverseEndianness (BitConverter.ToUInt16(data, 6));
+                int millisecond = BinaryPrimitives.ReverseEndianness(BitConverter.ToUInt16(data, 6));
                 byte[] reversedCurrentBytes = data.Skip(8).Take(4).Reverse().ToArray();
                 float current = BitConverter.ToSingle(reversedCurrentBytes, 0);
                 int indexNum = data[12];
@@ -203,7 +200,7 @@ namespace DataAcquisitionServerAppWithWebPage.Protocol
                 //Console.WriteLine("DataGlobal Collection Time: " + timestamp);
                 //Console.WriteLine("DC Bias Current Measurement Result: " + current);
 
-                return new ParsedData { DataCollectionTime = timestamp ,DCBiasCurrentMeasurementResult = current ,IndexNum = indexNum };
+                return new ParsedData { DataCollectionTime = timestamp, DCBiasCurrentMeasurementResult = current, IndexNum = indexNum };
 
 
             }
@@ -217,8 +214,8 @@ namespace DataAcquisitionServerAppWithWebPage.Protocol
                 // TODO: Implement the parsing of sampling frequency and work mode data
                 return new ParsedData { };
             }
-        }        
-        
+        }
+
         public class HeartBeatParser : CustomDataParser
         {
             public override ParsedData ParseData(byte[] data)
@@ -226,7 +223,7 @@ namespace DataAcquisitionServerAppWithWebPage.Protocol
                 // TODO: Implement the parsing of sampling frequency and work mode data
                 var package = new DataFieldPackage();
 
-                return new ParsedData {  };
+                return new ParsedData { };
             }
         }
 

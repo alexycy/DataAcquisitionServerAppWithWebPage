@@ -1,9 +1,6 @@
-﻿using MQTTnet.Server;
-using MQTTnet;
-using System.Net;
-using MQTTnet.Internal;
-using MQTTnet.Packets;
+﻿using MQTTnet;
 using MQTTnet.Protocol;
+using MQTTnet.Server;
 
 public class MqttService
 {
@@ -15,12 +12,12 @@ public class MqttService
         var mqttFactory = new MqttFactory();
 
         ifValidating = true;
-       mqttServerOptions = new MqttServerOptionsBuilder()
-            //WithDefaultEndpointPort方法是用来设置默认端口的端口号的，但是这个设置只有在默认端口被启用的时候才会生效。如果默认端口没有被启用，那么这个设置就不会有任何效果。
-            .WithDefaultEndpoint()
-            .WithDefaultEndpointPort(1885)
-            //.WithDefaultEndpointBoundIPAddress(IPAddress.Parse("192.168.1.103"))
-            .Build();
+        mqttServerOptions = new MqttServerOptionsBuilder()
+             //WithDefaultEndpointPort方法是用来设置默认端口的端口号的，但是这个设置只有在默认端口被启用的时候才会生效。如果默认端口没有被启用，那么这个设置就不会有任何效果。
+             .WithDefaultEndpoint()
+             .WithDefaultEndpointPort(1885)
+             //.WithDefaultEndpointBoundIPAddress(IPAddress.Parse("192.168.1.103"))
+             .Build();
 
         mqttServer = mqttFactory.CreateMqttServer(mqttServerOptions);
 
@@ -84,7 +81,7 @@ public class MqttService
 
         await mqttServer.StartAsync();
 
-       
+
         Console.WriteLine($"MQTT log server printed: {mqttFactory.DefaultLogger.ToString()}");
         Console.WriteLine($"MQTT server started: {mqttServer.IsStarted}");
         Console.WriteLine($"Endpoint: {mqttServerOptions.DefaultEndpointOptions.BoundInterNetworkAddress}");

@@ -1,5 +1,4 @@
 ﻿using MySql.Data.MySqlClient;
-using System;
 using System.Data;
 using System.Xml;
 
@@ -33,7 +32,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
             }
 
 
-            
+
         }
 
 
@@ -85,7 +84,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
             }
         }
 
-        
+
 
         public void BeginTransaction()
         {

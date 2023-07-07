@@ -1,6 +1,4 @@
-﻿using static Humanizer.In;
-
-namespace DataAcquisitionServerAppWithWebPage.Utilities
+﻿namespace DataAcquisitionServerAppWithWebPage.Utilities
 {
     public static class CheckAlgorithm
     {

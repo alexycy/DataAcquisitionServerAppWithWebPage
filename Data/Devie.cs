@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Xml.Linq;
+﻿using System.Xml.Linq;
 namespace DataAcquisitionServerAppWithWebPage.Data
 {
     public class Device
@@ -42,8 +37,8 @@ namespace DataAcquisitionServerAppWithWebPage.Data
 
     public abstract class DeviceSettingsBase
     {
-       public String IPAddress { get; set; }
-       public int Port { get; set; }
+        public String IPAddress { get; set; }
+        public int Port { get; set; }
         // 添加通用的设备配置参数
     }
 
@@ -198,7 +193,7 @@ namespace DataAcquisitionServerAppWithWebPage.Data
                         new XElement("TcpPort", tcpListenerSettings.Port)
                     );
                     break;
-                case HttpListenerSetting  httpListenerSetting:
+                case HttpListenerSetting httpListenerSetting:
                     settingsElement.Add(
                         new XElement("HttpAddress", httpListenerSetting.IPAddress),
                         new XElement("HttpPort", httpListenerSetting.Port)

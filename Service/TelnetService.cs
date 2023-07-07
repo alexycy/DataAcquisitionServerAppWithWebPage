@@ -1,16 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Net;
 using System.Net.Sockets;
-using System.Net;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace DataAcquisitionServerApp
 {
     public static class TelnetService
     {
-        public static async Task StartTelnetServerAsync(TcpListenerWrapper listenerWrapper,  string ipAddress, int port)
+        public static async Task StartTelnetServerAsync(TcpListenerWrapper listenerWrapper, string ipAddress, int port)
         {
             try
             {

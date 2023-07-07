@@ -1,12 +1,8 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using SuperSocket;
 using SuperSocket.ProtoBase;
-using SuperSocket;
-using System.Text;
 using SuperSocket.SerialIO;
 using System.IO.Ports;
-using static DataAcquisitionServerAppWithWebPage.Protocol.KDonlinemonitoring;
-using static DataAcquisitionServerAppWithWebPage.Service.TcpServer;
-using Newtonsoft.Json;
+using System.Text;
 
 namespace DataAcquisitionServerAppWithWebPage.Service
 {
@@ -20,7 +16,7 @@ namespace DataAcquisitionServerAppWithWebPage.Service
 
 
         public async void StartSerialPortIOServer()
-            {
+        {
             var host = SuperSocketHostBuilder
                 .Create<StringPackageInfo, CommandLinePipelineFilter>()
                 .UsePackageHandler(async (s, package) =>
@@ -59,15 +55,15 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                 })
                 .Build();
 
-                await host.RunAsync();
+            await host.RunAsync();
 
 
-            }
         }
+    }
 
 
-    
-           
 
-   
+
+
+
 }
