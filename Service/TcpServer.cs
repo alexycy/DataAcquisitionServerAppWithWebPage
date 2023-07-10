@@ -462,11 +462,11 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                         var dbHelper = new DatabaseHelper();
                                         string query;
                                         //插入数据记录   
-                                        lock (DataGlobal.dbLock)
-                                        {
+                                        //lock (DataGlobal.dbLock)
+                                        //{
                                             query = $"INSERT INTO `{DataGlobal.nowRecordTableName}`(imei, current,time,createTime,indexNumber) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}','{quadraticRev.DCBiasCurrentMeasurementResult}','{quadraticRev.DataCollectionTime.ToString("yyyy-MM-dd HH:mm:ss.fff")}','{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}','{quadraticRev.IndexNum}')";
                                             var resault = dbHelper.ExecuteNonQuery(query);
-                                        }
+                                        //}
                                       
 
 
