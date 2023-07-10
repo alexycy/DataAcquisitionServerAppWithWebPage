@@ -458,24 +458,26 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                     //创建一个新的异步任务来处理数据库操作
                                     await Task.Run(async () =>
                                     {
+                                        //使用数据库帮助类来执行数据库操作
+                                        var dbHelper = new DatabaseHelper();
+                                        string query;
+                                        //插入数据记录   
                                         lock (DataGlobal.dbLock)
                                         {
-                                            //使用数据库帮助类来执行数据库操作
-                                            var dbHelper = new DatabaseHelper();
-                                            string query;
-                                            //插入数据记录   
-
                                             query = $"INSERT INTO `{DataGlobal.nowRecordTableName}`(imei, current,time,createTime,indexNumber) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}','{quadraticRev.DCBiasCurrentMeasurementResult}','{quadraticRev.DataCollectionTime.ToString("yyyy-MM-dd HH:mm:ss.fff")}','{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}','{quadraticRev.IndexNum}')";
                                             var resault = dbHelper.ExecuteNonQuery(query);
+                                        }
+                                      
 
-                                            query = "SELECT imei, ipEndPoint FROM fct_device_code";
-                                            var dataTable = dbHelper.ExecuteQuery(query);
 
-                                            var deviceList = new List<(string Imei, string IpEndPoint)>();
-                                            foreach (DataRow row in dataTable.Rows)
-                                            {
-                                                deviceList.Add((row["imei"].ToString(), row["ipEndPoint"].ToString()));
-                                            }
+                                        query = "SELECT imei, ipEndPoint FROM fct_device_code";
+                                        var dataTable = dbHelper.ExecuteQuery(query);
+
+                                        var deviceList = new List<(string Imei, string IpEndPoint)>();
+                                        foreach (DataRow row in dataTable.Rows)
+                                        {
+                                            deviceList.Add((row["imei"].ToString(), row["ipEndPoint"].ToString()));
+                                        }
 
                                             var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
                                             if (ipEndPoint != null)
@@ -485,25 +487,24 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                                 var device = deviceList.FirstOrDefault(d => d.Imei == imei);
 
 
-                                                if (device.Imei == null)
-                                                {
+                                            if (device.Imei == null)
+                                            {
 
                                                     // If the IMEI does not exist, insert it into the fct_device_code
                                                     query = $"INSERT INTO fct_device_code (imei, ipEndPoint,onlineState) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}', '{ipEndPoint}','1')";
                                                     dbHelper.ExecuteNonQuery(query);
-
-
-                                                }
-                                                else if (device.IpEndPoint != ipEndPoint.ToString())
-                                                {
-
+                                                
+               
+                                            }
+                                            else if (device.IpEndPoint != ipEndPoint.ToString())
+                                            {
+                                    
                                                     // If the IMEI exists but the ipEndPoint does not match, update the current ipEndPoint in the fct_device_code
                                                     query = $"UPDATE fct_device_code SET ipEndPoint = '{ipEndPoint}' WHERE imei = '{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}'";
                                                     dbHelper.ExecuteNonQuery(query);
-
-                                                }
-                                                // If both match, do not perform any database operations
+                                                
                                             }
+                                            // If both match, do not perform any database operations
                                         }
 
 
@@ -516,13 +517,12 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                 {      //创建一个新的异步任务来处理数据库操作
                                     await Task.Run(async () =>
                                     {
-                                        lock (DataGlobal.dbLock)
-                                        {
-                                            //使用数据库帮助类来执行数据库操作
-                                            var dbHelper = new DatabaseHelper();
 
-                                            var query = "SELECT imei, ipEndPoint FROM fct_device_code";
-                                            var dataTable = dbHelper.ExecuteQuery(query);
+                                        //使用数据库帮助类来执行数据库操作
+                                        var dbHelper = new DatabaseHelper();
+
+                                        var query = "SELECT imei, ipEndPoint FROM fct_device_code";
+                                        var dataTable = dbHelper.ExecuteQuery(query);
 
                                             var deviceList = new List<(string Imei, string IpEndPoint)>();
                                             foreach (DataRow row in dataTable.Rows)
@@ -531,11 +531,12 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                             }
 
                                             var ipEndPoint = s.RemoteEndPoint as IPEndPoint;
-
-                                            // 更新设备的在线状态
-                                            query = $"UPDATE fct_device_code SET onlineState = '1' WHERE ipEndPoint = '{ipEndPoint}'";
-                                            dbHelper.ExecuteNonQuery(query);
-
+                                            //lock (DataGlobal.dbLock)
+                                            //{
+                                            //    // 更新设备的在线状态
+                                            //    query = $"UPDATE fct_device_code SET onlineState = '1' WHERE ipEndPoint = '{ipEndPoint}'";
+                                            //    dbHelper.ExecuteNonQuery(query);
+                                            //}
 
                                             if (ipEndPoint != null)
                                             {
@@ -544,26 +545,23 @@ namespace DataAcquisitionServerAppWithWebPage.Service
                                                 var device = deviceList.FirstOrDefault(d => d.Imei == imei);
 
 
-                                                if (device.Imei == null)
-                                                {
-                                                    // If the IMEI does not exist, insert it into the fct_device_code
-                                                    query = $"INSERT INTO fct_device_code (imei, ipEndPoint,onlineState) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}', '{ipEndPoint}','1')";
-                                                    dbHelper.ExecuteNonQuery(query);
-                                                }
-                                                else if (device.IpEndPoint != ipEndPoint.ToString())
-                                                {
-                                                    // If the IMEI exists but the ipEndPoint does not match, update the current ipEndPoint in the fct_device_code
-                                                    query = $"UPDATE fct_device_code SET ipEndPoint = '{ipEndPoint}' WHERE imei = '{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}'";
-                                                    dbHelper.ExecuteNonQuery(query);
-                                                }
-                                                // If both match, do not perform any database operations
+                                            if (device.Imei == null)
+                                            {
+                                                // If the IMEI does not exist, insert it into the fct_device_code
+                                                query = $"INSERT INTO fct_device_code (imei, ipEndPoint,onlineState) VALUES ('{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}', '{ipEndPoint}','1')";
+                                                dbHelper.ExecuteNonQuery(query);
                                             }
+                                            else if (device.IpEndPoint != ipEndPoint.ToString())
+                                            {
+                                                // If the IMEI exists but the ipEndPoint does not match, update the current ipEndPoint in the fct_device_code
+                                                query = $"UPDATE fct_device_code SET ipEndPoint = '{ipEndPoint}' WHERE imei = '{BitConverter.ToString(rev.DeviceNumber).Replace("-", "").ToUpper()}'";
+                                                dbHelper.ExecuteNonQuery(query);
+                                            }
+                                            // If both match, do not perform any database operations
                                         }
 
 
-
                                     });
-
 
                                 }
 

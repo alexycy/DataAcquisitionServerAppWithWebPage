@@ -86,7 +86,6 @@ namespace DataAcquisitionServerApp
         private WebSocketServer? _webSocketServer;
         private SerialPortIOServer? _serialIOPortServer;
         private static System.Timers.Timer timer;
-        private DatabaseManager _databaseManager;
         //private readonly ILogger _logger;
         public DataAcquisitionService(IServiceProvider serviceProvider/*,ILogger<DataAcquisitionService> logger*/)
         {
@@ -835,6 +834,7 @@ namespace DataAcquisitionServerApp
 
                                 query = $"UPDATE fct_device_code SET onlineState = '{onlineState}' WHERE imei = '{device.Imei}'";
                                 dbHelper.ExecuteNonQuery(query);
+
                             }
 
 
